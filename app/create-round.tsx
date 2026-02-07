@@ -1,0 +1,862 @@
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
+import { useAuth } from '@/contexts/AuthContext';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+interface RoundData {
+  name: string;
+  description: string;
+  currency: string;
+  contributionAmount: string;
+  startType: 'immediate' | 'future' | 'in-progress';
+  startDate?: Date;
+  contributionFrequency: 'weekly' | 'monthly' | 'biweekly';
+  numberOfMembers: string;
+  payoutOrder: 'fixed' | 'random';
+  gracePeriodDays: string;
+  conflictResolutionEnabled: boolean;
+  paymentVerification: 'optional' | 'mandatory';
+}
+
+export default function CreateRoundScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [roundData, setRoundData] = useState<RoundData>({
+    name: '',
+    description: '',
+    currency: 'USD',
+    contributionAmount: '',
+    startType: 'immediate',
+    contributionFrequency: 'monthly',
+    numberOfMembers: '',
+    payoutOrder: 'fixed',
+    gracePeriodDays: '3',
+    conflictResolutionEnabled: true,
+    paymentVerification: 'optional',
+  });
+
+  const updateField = (field: keyof RoundData, value: any) => {
+    console.log('Create Round: User updated field:', field, value);
+    setRoundData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const goToNextStep = () => {
+    console.log('Create Round: User moved to step', currentStep + 1);
+    setCurrentStep(prev => prev + 1);
+  };
+
+  const goToPreviousStep = () => {
+    console.log('Create Round: User went back to step', currentStep - 1);
+    setCurrentStep(prev => prev - 1);
+  };
+
+  const handleCreateRound = async () => {
+    try {
+      console.log('[Create Round] Creating round with data:', roundData);
+      const { authenticatedPost } = await import('@/utils/api');
+      
+      const payload = {
+        name: roundData.name,
+        description: roundData.description || undefined,
+        currency: roundData.currency,
+        contributionAmount: parseFloat(roundData.contributionAmount),
+        contributionFrequency: roundData.contributionFrequency,
+        numberOfMembers: parseInt(roundData.numberOfMembers),
+        payoutOrder: roundData.payoutOrder,
+        startType: roundData.startType,
+        startDate: roundData.startDate?.toISOString(),
+        gracePeriodDays: parseInt(roundData.gracePeriodDays),
+        conflictResolutionEnabled: roundData.conflictResolutionEnabled,
+        paymentVerification: roundData.paymentVerification,
+      };
+      
+      const createdRound = await authenticatedPost('/api/rounds', payload);
+      console.log('[Create Round] Round created successfully:', createdRound);
+      router.back();
+    } catch (error) {
+      console.error('[Create Round] Error creating round:', error);
+    }
+  };
+
+  const canProceedStep1 = roundData.name.trim() !== '' && roundData.contributionAmount !== '';
+  const canProceedStep2 = roundData.numberOfMembers !== '' && parseInt(roundData.numberOfMembers) > 0;
+  const canProceedStep3 = true;
+
+  const renderStep1 = () => (
+    <View style={styles.stepContent}>
+      <Text style={commonStyles.subtitle}>Step 1: Basics</Text>
+      <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
+        Define what your round is about
+      </Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Round Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={roundData.name}
+          onChangeText={(text) => updateField('name', text)}
+          placeholder="e.g., Family Savings Circle"
+          placeholderTextColor={colors.textLight}
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Description (Optional)</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={roundData.description}
+          onChangeText={(text) => updateField('description', text)}
+          placeholder="What is this round for?"
+          placeholderTextColor={colors.textLight}
+          multiline
+          numberOfLines={3}
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Currency</Text>
+        <View style={styles.currencyRow}>
+          {['USD', 'EUR', 'GBP', 'NGN'].map((curr) => (
+            <TouchableOpacity
+              key={curr}
+              style={[
+                styles.currencyButton,
+                roundData.currency === curr && styles.currencyButtonActive,
+              ]}
+              onPress={() => updateField('currency', curr)}
+            >
+              <Text
+                style={[
+                  styles.currencyButtonText,
+                  roundData.currency === curr && styles.currencyButtonTextActive,
+                ]}
+              >
+                {curr}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Contribution Amount (per person, per cycle) *</Text>
+        <TextInput
+          style={styles.input}
+          value={roundData.contributionAmount}
+          onChangeText={(text) => updateField('contributionAmount', text)}
+          placeholder="100"
+          placeholderTextColor={colors.textLight}
+          keyboardType="numeric"
+        />
+      </View>
+
+      <TouchableOpacity
+        style={[styles.nextButton, !canProceedStep1 && styles.buttonDisabled]}
+        onPress={goToNextStep}
+        disabled={!canProceedStep1}
+      >
+        <Text style={styles.nextButtonText}>Continue</Text>
+        <IconSymbol
+          ios_icon_name="arrow.right"
+          android_material_icon_name="arrow-forward"
+          size={20}
+          color="#FFFFFF"
+        />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContent}>
+      <Text style={commonStyles.subtitle}>Step 2: Schedule</Text>
+      <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
+        Define when the round runs and how payouts rotate
+      </Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Start Type</Text>
+        <View style={styles.optionGroup}>
+          {[
+            { value: 'immediate', label: 'Start Immediately', desc: 'Begin as soon as members join' },
+            { value: 'future', label: 'Start on a Future Date', desc: 'Schedule a specific start date' },
+            { value: 'in-progress', label: 'Already in Progress', desc: 'Round has already started' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.optionCard,
+                roundData.startType === option.value && styles.optionCardActive,
+              ]}
+              onPress={() => updateField('startType', option.value)}
+            >
+              <View style={styles.optionHeader}>
+                <View
+                  style={[
+                    styles.radio,
+                    roundData.startType === option.value && styles.radioActive,
+                  ]}
+                />
+                <Text style={styles.optionLabel}>{option.label}</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {roundData.startType === 'future' && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Start Date</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.dateButtonText}>
+              {roundData.startDate
+                ? roundData.startDate.toLocaleDateString()
+                : 'Select Date'}
+            </Text>
+            <IconSymbol
+              ios_icon_name="calendar"
+              android_material_icon_name="calendar-today"
+              size={20}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={roundData.startDate || new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  updateField('startDate', selectedDate);
+                }
+              }}
+            />
+          )}
+        </View>
+      )}
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Contribution Frequency</Text>
+        <View style={styles.frequencyRow}>
+          {[
+            { value: 'weekly', label: 'Weekly' },
+            { value: 'biweekly', label: 'Bi-weekly' },
+            { value: 'monthly', label: 'Monthly' },
+          ].map((freq) => (
+            <TouchableOpacity
+              key={freq.value}
+              style={[
+                styles.frequencyButton,
+                roundData.contributionFrequency === freq.value && styles.frequencyButtonActive,
+              ]}
+              onPress={() => updateField('contributionFrequency', freq.value)}
+            >
+              <Text
+                style={[
+                  styles.frequencyButtonText,
+                  roundData.contributionFrequency === freq.value && styles.frequencyButtonTextActive,
+                ]}
+              >
+                {freq.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Number of Members *</Text>
+        <TextInput
+          style={styles.input}
+          value={roundData.numberOfMembers}
+          onChangeText={(text) => updateField('numberOfMembers', text)}
+          placeholder="e.g., 10"
+          placeholderTextColor={colors.textLight}
+          keyboardType="numeric"
+        />
+        <Text style={commonStyles.textSecondary}>
+          Total number of people in this round (including you)
+        </Text>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Payout Order</Text>
+        <View style={styles.optionGroup}>
+          {[
+            { value: 'fixed', label: 'Fixed Order', desc: 'Members receive payouts in a set sequence' },
+            { value: 'random', label: 'Random Order', desc: 'Payout order is randomized each cycle' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.optionCard,
+                roundData.payoutOrder === option.value && styles.optionCardActive,
+              ]}
+              onPress={() => updateField('payoutOrder', option.value)}
+            >
+              <View style={styles.optionHeader}>
+                <View
+                  style={[
+                    styles.radio,
+                    roundData.payoutOrder === option.value && styles.radioActive,
+                  ]}
+                />
+                <Text style={styles.optionLabel}>{option.label}</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.backButton} onPress={goToPreviousStep}>
+          <IconSymbol
+            ios_icon_name="arrow.left"
+            android_material_icon_name="arrow-back"
+            size={20}
+            color={colors.primary}
+          />
+          <Text style={[styles.backButtonText]}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.nextButton, styles.nextButtonFlex, !canProceedStep2 && styles.buttonDisabled]}
+          onPress={goToNextStep}
+          disabled={!canProceedStep2}
+        >
+          <Text style={styles.nextButtonText}>Continue</Text>
+          <IconSymbol
+            ios_icon_name="arrow.right"
+            android_material_icon_name="arrow-forward"
+            size={20}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
+    <View style={styles.stepContent}>
+      <Text style={commonStyles.subtitle}>Step 3: Rules & Trust Controls</Text>
+      <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
+        Set expectations and reduce disputes
+      </Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Late Payment Grace Period</Text>
+        <TextInput
+          style={styles.input}
+          value={roundData.gracePeriodDays}
+          onChangeText={(text) => updateField('gracePeriodDays', text)}
+          placeholder="3"
+          placeholderTextColor={colors.textLight}
+          keyboardType="numeric"
+        />
+        <Text style={commonStyles.textSecondary}>
+          Number of days after due date before marking as late
+        </Text>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Conflict Resolution</Text>
+        <TouchableOpacity
+          style={styles.toggleRow}
+          onPress={() => updateField('conflictResolutionEnabled', !roundData.conflictResolutionEnabled)}
+        >
+          <View style={styles.toggleInfo}>
+            <Text style={commonStyles.text}>Enable Conflict Resolution</Text>
+            <Text style={commonStyles.textSecondary}>
+              Allow members to report and resolve disputes
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.toggle,
+              roundData.conflictResolutionEnabled && styles.toggleActive,
+            ]}
+          >
+            <View
+              style={[
+                styles.toggleThumb,
+                roundData.conflictResolutionEnabled && styles.toggleThumbActive,
+              ]}
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Payment Verification</Text>
+        <View style={styles.optionGroup}>
+          {[
+            { value: 'optional', label: 'Optional', desc: 'Members can upload proof, but it&apos;s not required' },
+            { value: 'mandatory', label: 'Mandatory', desc: 'Members must upload proof of payment' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.optionCard,
+                roundData.paymentVerification === option.value && styles.optionCardActive,
+              ]}
+              onPress={() => updateField('paymentVerification', option.value)}
+            >
+              <View style={styles.optionHeader}>
+                <View
+                  style={[
+                    styles.radio,
+                    roundData.paymentVerification === option.value && styles.radioActive,
+                  ]}
+                />
+                <Text style={styles.optionLabel}>{option.label}</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.buttonRow}>
+        <TouchableOpacity style={styles.backButton} onPress={goToPreviousStep}>
+          <IconSymbol
+            ios_icon_name="arrow.left"
+            android_material_icon_name="arrow-back"
+            size={20}
+            color={colors.primary}
+          />
+          <Text style={[styles.backButtonText]}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.nextButton, styles.nextButtonFlex]}
+          onPress={goToNextStep}
+        >
+          <Text style={styles.nextButtonText}>Review</Text>
+          <IconSymbol
+            ios_icon_name="arrow.right"
+            android_material_icon_name="arrow-forward"
+            size={20}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderStep4 = () => {
+    const startTypeLabel = roundData.startType === 'immediate' ? 'Start Immediately' :
+      roundData.startType === 'future' ? 'Start on Future Date' : 'Already in Progress';
+    const payoutOrderLabel = roundData.payoutOrder === 'fixed' ? 'Fixed Order' : 'Random Order';
+    const verificationLabel = roundData.paymentVerification === 'optional' ? 'Optional' : 'Mandatory';
+
+    return (
+      <View style={styles.stepContent}>
+        <Text style={commonStyles.subtitle}>Step 4: Review & Confirm</Text>
+        <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
+          Review your round details before creating
+        </Text>
+
+        <View style={[commonStyles.card, styles.reviewCard]}>
+          <Text style={styles.reviewSectionTitle}>Basics</Text>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Name:</Text>
+            <Text style={commonStyles.text}>{roundData.name}</Text>
+          </View>
+          {roundData.description && (
+            <View style={styles.reviewRow}>
+              <Text style={commonStyles.textSecondary}>Description:</Text>
+              <Text style={commonStyles.text}>{roundData.description}</Text>
+            </View>
+          )}
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Contribution:</Text>
+            <Text style={commonStyles.text}>
+              {roundData.currency} {roundData.contributionAmount}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[commonStyles.card, styles.reviewCard]}>
+          <Text style={styles.reviewSectionTitle}>Schedule</Text>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Start:</Text>
+            <Text style={commonStyles.text}>{startTypeLabel}</Text>
+          </View>
+          {roundData.startDate && (
+            <View style={styles.reviewRow}>
+              <Text style={commonStyles.textSecondary}>Start Date:</Text>
+              <Text style={commonStyles.text}>
+                {roundData.startDate.toLocaleDateString()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Frequency:</Text>
+            <Text style={commonStyles.text}>
+              {roundData.contributionFrequency}
+            </Text>
+          </View>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Members:</Text>
+            <Text style={commonStyles.text}>{roundData.numberOfMembers}</Text>
+          </View>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Payout Order:</Text>
+            <Text style={commonStyles.text}>{payoutOrderLabel}</Text>
+          </View>
+        </View>
+
+        <View style={[commonStyles.card, styles.reviewCard]}>
+          <Text style={styles.reviewSectionTitle}>Rules & Trust</Text>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Grace Period:</Text>
+            <Text style={commonStyles.text}>{roundData.gracePeriodDays} days</Text>
+          </View>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Conflict Resolution:</Text>
+            <Text style={commonStyles.text}>
+              {roundData.conflictResolutionEnabled ? 'Enabled' : 'Disabled'}
+            </Text>
+          </View>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Payment Verification:</Text>
+            <Text style={commonStyles.text}>{verificationLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.backButton} onPress={goToPreviousStep}>
+            <IconSymbol
+              ios_icon_name="arrow.left"
+              android_material_icon_name="arrow-back"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={[styles.backButtonText]}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.createButton, styles.nextButtonFlex]}
+            onPress={handleCreateRound}
+          >
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check-circle"
+              size={20}
+              color="#FFFFFF"
+            />
+            <Text style={styles.nextButtonText}>Create Round</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Create Round',
+          headerBackTitle: 'Cancel',
+        }}
+      />
+      <SafeAreaView style={commonStyles.wrapper} edges={['bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.progressBar}>
+            {[1, 2, 3, 4].map((step) => (
+              <View
+                key={step}
+                style={[
+                  styles.progressStep,
+                  step <= currentStep && styles.progressStepActive,
+                ]}
+              />
+            ))}
+          </View>
+
+          <ScrollView
+            style={commonStyles.container}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+  progressBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  progressStep: {
+    flex: 1,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+  },
+  progressStepActive: {
+    backgroundColor: colors.primary,
+  },
+  stepContent: {
+    paddingTop: 8,
+  },
+  stepDescription: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  currencyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  currencyButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.highlight,
+  },
+  currencyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  currencyButtonTextActive: {
+    color: colors.primary,
+  },
+  optionGroup: {
+    gap: 12,
+  },
+  optionCard: {
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  optionCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.highlight,
+  },
+  optionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    marginRight: 12,
+  },
+  radioActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  optionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  frequencyRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  frequencyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  frequencyButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.highlight,
+  },
+  frequencyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  frequencyButtonTextActive: {
+    color: colors.primary,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  toggle: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
+  },
+  reviewCard: {
+    marginBottom: 16,
+  },
+  reviewSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundAlt,
+    gap: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    gap: 8,
+  },
+  nextButtonFlex: {
+    flex: 1,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: colors.success,
+    gap: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+});
