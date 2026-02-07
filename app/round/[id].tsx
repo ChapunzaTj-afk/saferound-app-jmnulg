@@ -258,7 +258,6 @@ export default function RoundDetailScreen() {
       const { authenticatedPost } = await import('@/utils/api');
       await authenticatedPost(`/api/contributions/${contributionId}/mark-paid`, {});
       console.log('[Round Detail] Contribution marked as paid');
-      // Reload contributions and overview
       await loadContributions();
       await loadOverview();
       await loadTimeline();
@@ -282,8 +281,6 @@ export default function RoundDetailScreen() {
       if (proofType === 'reference') {
         payload.referenceText = proofReference;
       } else {
-        // For image/file, we would need to implement file upload
-        // For now, just use a placeholder URL
         payload.proofUrl = 'https://example.com/proof.jpg';
       }
       
@@ -294,7 +291,6 @@ export default function RoundDetailScreen() {
       setProofReference('');
       setSelectedContribution(null);
       
-      // Reload data
       await loadContributions();
       await loadOverview();
       await loadTimeline();
@@ -329,7 +325,6 @@ export default function RoundDetailScreen() {
       await authenticatedPost(`/api/payment-proofs/${proofId}/approve`, {});
       console.log('[Round Detail] Proof approved');
       
-      // Reload proofs and other data
       if (selectedContribution) {
         await handleViewProofs(selectedContribution);
       }
@@ -348,7 +343,6 @@ export default function RoundDetailScreen() {
       await authenticatedPost(`/api/payment-proofs/${proofId}/reject`, { reason });
       console.log('[Round Detail] Proof rejected');
       
-      // Reload proofs and other data
       if (selectedContribution) {
         await handleViewProofs(selectedContribution);
       }
@@ -535,39 +529,6 @@ export default function RoundDetailScreen() {
             </Text>
           </View>
         </View>
-
-        {isOrganizer && inviteCode && (
-          <View style={[commonStyles.card, styles.inviteCard]}>
-            <Text style={styles.cardTitle}>Invite Members</Text>
-            <Text style={commonStyles.textSecondary}>Share this code with members to join:</Text>
-            <View style={styles.inviteCodeContainer}>
-              <Text style={styles.inviteCodeText}>{inviteCode}</Text>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={handleCopyCode}
-              >
-                <IconSymbol
-                  ios_icon_name="doc.on.doc"
-                  android_material_icon_name="content-copy"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.shareButton}
-              onPress={handleShareInvite}
-            >
-              <IconSymbol
-                ios_icon_name="square.and.arrow.up"
-                android_material_icon_name="share"
-                size={20}
-                color="#FFFFFF"
-              />
-              <Text style={styles.shareButtonText}>Share Invite</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
     );
   };
@@ -578,9 +539,14 @@ export default function RoundDetailScreen() {
     
     return (
       <View style={styles.tabContent}>
+        <Text style={styles.sectionTitle}>Contribution Tracking</Text>
+        <Text style={[commonStyles.textSecondary, { marginBottom: 16 }]}>
+          Track and manage contributions for this round
+        </Text>
+
         {userContributions.length > 0 && (
           <View style={styles.contributionSection}>
-            <Text style={styles.sectionTitle}>Your Contributions</Text>
+            <Text style={styles.subsectionTitle}>Your Contributions</Text>
             {userContributions.map((contribution, index) => {
               const statusColor = getContributionStatusColor(contribution.status);
               const statusText = getContributionStatusText(contribution.status);
@@ -678,7 +644,7 @@ export default function RoundDetailScreen() {
         
         {isOrganizer && otherContributions.length > 0 && (
           <View style={styles.contributionSection}>
-            <Text style={styles.sectionTitle}>All Contributions</Text>
+            <Text style={styles.subsectionTitle}>All Member Contributions</Text>
             {otherContributions.map((contribution, index) => {
               const statusColor = getContributionStatusColor(contribution.status);
               const statusText = getContributionStatusText(contribution.status);
@@ -738,6 +704,40 @@ export default function RoundDetailScreen() {
 
   const renderMembers = () => (
     <View style={styles.tabContent}>
+      {isOrganizer && inviteCode && (
+        <View style={[commonStyles.card, styles.inviteCard]}>
+          <Text style={styles.cardTitle}>Add Members</Text>
+          <Text style={commonStyles.textSecondary}>Share this code with members to join:</Text>
+          <View style={styles.inviteCodeContainer}>
+            <Text style={styles.inviteCodeText}>{inviteCode}</Text>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopyCode}
+            >
+              <IconSymbol
+                ios_icon_name="doc.on.doc"
+                android_material_icon_name="content-copy"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={handleShareInvite}
+          >
+            <IconSymbol
+              ios_icon_name="square.and.arrow.up"
+              android_material_icon_name="share"
+              size={20}
+              color="#FFFFFF"
+            />
+            <Text style={styles.shareButtonText}>Share Invite Link</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Text style={styles.sectionTitle}>Current Members</Text>
       {members.map((member, index) => {
         const statusColor = getContributionStatusColor(member.contributionStatus);
         const statusText = getContributionStatusText(member.contributionStatus);
@@ -1278,7 +1278,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   inviteCard: {
-    marginTop: 8,
+    marginBottom: 16,
   },
   inviteCodeContainer: {
     flexDirection: 'row',
@@ -1455,7 +1455,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subsectionTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,

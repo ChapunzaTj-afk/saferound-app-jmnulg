@@ -15,17 +15,16 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface PayoutEvent {
+interface CalendarEvent {
   id: string;
   roundId: string;
   roundName: string;
-  payoutDate: string;
-  recipientUserId: string;
-  recipientName: string;
+  date: string;
+  eventType: 'payout' | 'contribution';
+  isOrganizer: boolean;
+  recipientName?: string;
   amount: number;
   currency: string;
-  userRole: 'organizer' | 'member';
-  status: 'scheduled' | 'completed';
 }
 
 type FilterMode = 'all' | 'organized' | 'joined';
@@ -35,28 +34,28 @@ export default function CalendarScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [payouts, setPayouts] = useState<PayoutEvent[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   useEffect(() => {
     if (user) {
-      loadPayouts();
+      loadEvents();
     }
   }, [user, filterMode]);
 
-  const loadPayouts = async () => {
+  const loadEvents = async () => {
     try {
       setLoading(true);
-      console.log('[Calendar] Loading payouts with filter:', filterMode);
+      console.log('[Calendar] Loading events with filter:', filterMode);
       const { authenticatedGet } = await import('@/utils/api');
-      const data = await authenticatedGet<{ payouts: PayoutEvent[] }>(
+      const data = await authenticatedGet<{ events: CalendarEvent[] }>(
         `/api/calendar/payouts?filter=${filterMode}`
       );
-      console.log('[Calendar] Payouts loaded:', data.payouts.length);
-      setPayouts(data.payouts);
+      console.log('[Calendar] Events loaded:', data.events.length);
+      setEvents(data.events);
     } catch (error) {
-      console.error('[Calendar] Error loading payouts:', error);
-      setPayouts([]);
+      console.error('[Calendar] Error loading events:', error);
+      setEvents([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -65,7 +64,7 @@ export default function CalendarScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadPayouts();
+    loadEvents();
   };
 
   const handleFilterModeChange = (mode: FilterMode) => {
@@ -83,64 +82,92 @@ export default function CalendarScreen() {
     });
   };
 
-  const handlePayoutPress = (payout: PayoutEvent) => {
-    console.log('[Calendar] User tapped payout:', payout.roundName);
-    router.push(`/round/${payout.roundId}`);
+  const handleEventPress = (event: CalendarEvent) => {
+    console.log('[Calendar] User tapped event:', event.roundName);
+    router.push(`/round/${event.roundId}`);
   };
 
   const renderListView = () => {
-    const groupedPayouts: { [key: string]: PayoutEvent[] } = {};
-    
-    payouts.forEach(payout => {
-      const date = new Date(payout.payoutDate);
-      const monthKey = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      
-      if (!groupedPayouts[monthKey]) {
-        groupedPayouts[monthKey] = [];
-      }
-      groupedPayouts[monthKey].push(payout);
-    });
-
-    const sortedMonths = Object.keys(groupedPayouts).sort((a, b) => {
-      const dateA = new Date(groupedPayouts[a][0].payoutDate);
-      const dateB = new Date(groupedPayouts[b][0].payoutDate);
-      return dateA.getTime() - dateB.getTime();
-    });
+    const organizerEvents = events.filter(e => e.isOrganizer);
+    const memberEvents = events.filter(e => !e.isOrganizer);
 
     return (
       <View style={styles.listContainer}>
-        {sortedMonths.map((month, monthIndex) => (
-          <View key={monthIndex} style={styles.monthSection}>
-            <Text style={styles.monthSectionTitle}>{month}</Text>
-            {groupedPayouts[month].map((payout, index) => (
+        {organizerEvents.length > 0 && (
+          <View style={styles.viewSection}>
+            <Text style={styles.viewSectionTitle}>Organizer View</Text>
+            <Text style={[commonStyles.textSecondary, { marginBottom: 12 }]}>
+              Upcoming payouts for rounds you organize
+            </Text>
+            {organizerEvents.map((event, index) => (
               <TouchableOpacity
                 key={index}
-                style={[commonStyles.card, styles.payoutCard]}
-                onPress={() => handlePayoutPress(payout)}
+                style={[commonStyles.card, styles.eventCard]}
+                onPress={() => handleEventPress(event)}
               >
-                <View style={styles.payoutHeader}>
-                  <View style={styles.payoutInfo}>
-                    <Text style={commonStyles.text}>{payout.roundName}</Text>
+                <View style={styles.eventHeader}>
+                  <View style={styles.eventInfo}>
+                    <Text style={commonStyles.text}>{event.roundName}</Text>
                     <Text style={commonStyles.textSecondary}>
-                      {formatDate(payout.payoutDate)}
+                      {formatDate(event.date)}
                     </Text>
                   </View>
-                  <View style={styles.payoutBadge}>
-                    <Text style={styles.payoutBadgeText}>
-                      {payout.userRole === 'organizer' ? 'Organizer' : 'Member'}
-                    </Text>
+                  <View style={[styles.eventBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.eventBadgeText}>Payout</Text>
                   </View>
                 </View>
                 <Text style={commonStyles.textSecondary}>
-                  Recipient: {payout.recipientName}
+                  Recipient: {event.recipientName || 'TBD'}
                 </Text>
-                <Text style={[commonStyles.text, styles.payoutAmount]}>
-                  {payout.currency} {payout.amount}
+                <Text style={[commonStyles.text, styles.eventAmount]}>
+                  {event.currency} {event.amount}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
-        ))}
+        )}
+
+        {memberEvents.length > 0 && (
+          <View style={styles.viewSection}>
+            <Text style={styles.viewSectionTitle}>Member View</Text>
+            <Text style={[commonStyles.textSecondary, { marginBottom: 12 }]}>
+              Your upcoming contributions and expected payouts
+            </Text>
+            {memberEvents.map((event, index) => {
+              const isContribution = event.eventType === 'contribution';
+              const badgeColor = isContribution ? colors.warning : colors.success;
+              const badgeText = isContribution ? 'Contribution Due' : 'Expected Payout';
+              
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[commonStyles.card, styles.eventCard]}
+                  onPress={() => handleEventPress(event)}
+                >
+                  <View style={styles.eventHeader}>
+                    <View style={styles.eventInfo}>
+                      <Text style={commonStyles.text}>{event.roundName}</Text>
+                      <Text style={commonStyles.textSecondary}>
+                        {formatDate(event.date)}
+                      </Text>
+                    </View>
+                    <View style={[styles.eventBadge, { backgroundColor: badgeColor }]}>
+                      <Text style={styles.eventBadgeText}>{badgeText}</Text>
+                    </View>
+                  </View>
+                  {!isContribution && event.recipientName && (
+                    <Text style={commonStyles.textSecondary}>
+                      You will receive payout
+                    </Text>
+                  )}
+                  <Text style={[commonStyles.text, styles.eventAmount]}>
+                    {event.currency} {event.amount}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
     );
   };
@@ -224,7 +251,7 @@ export default function CalendarScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {payouts.length === 0 ? (
+        {events.length === 0 ? (
           <View style={[commonStyles.card, styles.emptyState]}>
             <IconSymbol
               ios_icon_name="calendar"
@@ -233,10 +260,10 @@ export default function CalendarScreen() {
               color={colors.textSecondary}
             />
             <Text style={[commonStyles.text, styles.emptyStateTitle]}>
-              No upcoming payouts
+              No upcoming events
             </Text>
             <Text style={commonStyles.textSecondary}>
-              Payouts from your rounds will appear here
+              Events from your rounds will appear here
             </Text>
           </View>
         ) : (
@@ -306,39 +333,38 @@ const styles = StyleSheet.create({
   listContainer: {
     marginTop: 8,
   },
-  monthSection: {
-    marginBottom: 24,
+  viewSection: {
+    marginBottom: 32,
   },
-  monthSectionTitle: {
-    fontSize: 18,
+  viewSectionTitle: {
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 8,
+  },
+  eventCard: {
     marginBottom: 12,
   },
-  payoutCard: {
-    marginBottom: 12,
-  },
-  payoutHeader: {
+  eventHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
   },
-  payoutInfo: {
+  eventInfo: {
     flex: 1,
   },
-  payoutBadge: {
-    backgroundColor: colors.primary,
+  eventBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  payoutBadgeText: {
+  eventBadgeText: {
     fontSize: 11,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  payoutAmount: {
+  eventAmount: {
     fontSize: 16,
     fontWeight: '600',
     marginTop: 4,
