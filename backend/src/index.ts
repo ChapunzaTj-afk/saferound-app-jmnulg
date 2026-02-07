@@ -2,6 +2,7 @@ import { createApplication } from "@specific-dev/framework";
 import * as appSchema from './db/schema.js';
 import * as authSchema from './db/auth-schema.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerEmailAuthRoutes } from './routes/emailAuth.js';
 import { registerUserRoutes } from './routes/users.js';
 import { registerRoundsRoutes } from './routes/rounds.js';
 import { registerRoundMembersRoutes } from './routes/roundMembers.js';
@@ -17,12 +18,17 @@ export const app = await createApplication(schema);
 // Export App type for use in route files
 export type App = typeof app;
 
-// Enable authentication with email/password and OAuth (Google, Apple)
+// Enable authentication with email/password and OAuth (Google, Apple only)
 // OAuth callback routes are automatically handled by Better Auth framework
-// If custom OAuth credentials are needed, they should be passed via environment variables:
+// GitHub OAuth is explicitly disabled
+// Both Google and Apple OAuth use the OAuth proxy by default (no configuration needed)
+// For custom credentials, use environment variables:
 // - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 // - APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY
 app.withAuth({
+  // Only Google and Apple OAuth providers enabled
+  // GitHub provider is disabled
+  // OAuth proxy is used by default for both providers
   // Optionally restrict trusted origins if needed
   // trustedOrigins: process.env.TRUSTED_ORIGINS?.split(',') || ["*"],
 });
@@ -95,6 +101,7 @@ app.fastify.setErrorHandler((error, request, reply) => {
 
 // Register route modules AFTER app is created
 registerAuthRoutes(app);
+registerEmailAuthRoutes(app);
 registerUserRoutes(app);
 registerRoundsRoutes(app);
 registerRoundMembersRoutes(app);
