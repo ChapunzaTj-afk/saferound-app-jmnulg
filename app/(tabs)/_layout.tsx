@@ -4,6 +4,9 @@ import { Stack } from 'expo-router';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import type { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
+import { Dimensions } from 'react-native';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 export default function TabLayout() {
   const tabs: TabBarItem[] = [
@@ -39,7 +42,7 @@ export default function TabLayout() {
         <Stack.Screen key="calendar" name="calendar" />
         <Stack.Screen key="profile" name="profile" />
       </Stack>
-      <FloatingTabBar tabs={tabs} />
+      <FloatingTabBar tabs={tabs} containerWidth={screenWidth * 0.75} />
     </>
   );
 }

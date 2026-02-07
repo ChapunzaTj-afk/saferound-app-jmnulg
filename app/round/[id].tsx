@@ -1298,7 +1298,7 @@ export default function RoundDetailScreen() {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 100,
   },
   centerContent: {
@@ -1314,16 +1314,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   tabBarContent: {
-    paddingHorizontal: 12,
-    gap: 4,
+    paddingHorizontal: 8,
+    gap: 2,
   },
   tab: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
-    marginHorizontal: 2,
+    marginHorizontal: 1,
   },
   tabActive: {
     borderBottomColor: colors.primary,
