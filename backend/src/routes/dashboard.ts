@@ -113,6 +113,7 @@ export function registerDashboardRoutes(app: App) {
             numberOfMembers: round.numberOfMembers,
             startDate: round.startDate ? round.startDate.toISOString() : null,
             status: round.status,
+            role: ur.role,
             nextImportantDate: roundNextDate ? roundNextDate.toISOString() : null,
             nextImportantAction: roundNextAction,
           };
