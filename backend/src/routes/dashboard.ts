@@ -52,12 +52,27 @@ export function registerDashboardRoutes(app: App) {
         };
       }
 
+      // Deduplicate rounds: group by roundId, prioritizing 'organizer' role if user has multiple roles
+      const roundMap = new Map<string, typeof userRounds[0]>();
+      for (const ur of userRounds) {
+        const roundId = ur.round.id;
+        const existing = roundMap.get(roundId);
+
+        // If this entry is 'organizer', or there's no existing entry, use this one
+        if (!existing || ur.role === 'organizer') {
+          roundMap.set(roundId, ur);
+        }
+      }
+
+      const uniqueUserRounds = Array.from(roundMap.values());
+      app.logger.debug({ userId, totalEntries: userRounds.length, uniqueRounds: uniqueUserRounds.length }, 'Deduplicated user rounds');
+
       // Calculate dashboard metrics
       let nextImportantDate: Date | null = null;
       let nextImportantAction: string | null = null;
       let globalStatus = 'healthy';
 
-      const activeRounds = userRounds
+      const activeRounds = uniqueUserRounds
         .filter(ur => ur.round.status === 'active')
         .map(ur => {
           const round = ur.round;
@@ -121,7 +136,7 @@ export function registerDashboardRoutes(app: App) {
 
       // Collect action items (pending proofs, overdue contributions)
       const actionItems: any[] = [];
-      for (const ur of userRounds) {
+      for (const ur of uniqueUserRounds) {
         const round = ur.round;
         // Get pending proofs
         const pendingProofs = await app.db.query.paymentProofs.findMany({
