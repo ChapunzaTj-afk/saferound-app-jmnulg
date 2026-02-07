@@ -453,8 +453,66 @@ export default function RoundDetailScreen() {
       ? (overview.contributionProgress.paid / overview.contributionProgress.total) * 100
       : 0;
 
+    const userContributions = contributions.filter(c => c.userId === user?.id);
+    const nextDueContribution = userContributions.find(c => c.status === 'pending' || c.status === 'late');
+
     return (
       <View style={styles.tabContent}>
+        {nextDueContribution && (
+          <View style={[commonStyles.card, styles.quickActionCard]}>
+            <View style={styles.quickActionHeader}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.circle.fill"
+                android_material_icon_name="error"
+                size={24}
+                color={nextDueContribution.status === 'late' ? colors.error : colors.warning}
+              />
+              <Text style={[commonStyles.subtitle, styles.quickActionTitle]}>
+                {nextDueContribution.status === 'late' ? 'Payment Overdue' : 'Payment Due'}
+              </Text>
+            </View>
+            <Text style={[commonStyles.text, styles.quickActionAmount]}>
+              {round.currency} {nextDueContribution.amount}
+            </Text>
+            <Text style={commonStyles.textSecondary}>
+              Due: {formatDate(nextDueContribution.dueDate)}
+            </Text>
+            <View style={styles.quickActionButtons}>
+              <TouchableOpacity
+                style={[styles.quickActionButton, styles.quickActionButtonPrimary]}
+                onPress={() => handleMarkAsPaid(nextDueContribution.id)}
+              >
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.quickActionButtonText}>Record Payment</Text>
+              </TouchableOpacity>
+              {round.paymentVerification !== 'none' && (
+                <TouchableOpacity
+                  style={[styles.quickActionButton, styles.quickActionButtonSecondary]}
+                  onPress={() => {
+                    setSelectedContribution(nextDueContribution);
+                    setProofModalVisible(true);
+                  }}
+                >
+                  <IconSymbol
+                    ios_icon_name="arrow.up.doc.fill"
+                    android_material_icon_name="upload"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.quickActionButtonText, { color: colors.primary }]}>
+                    Upload Proof
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         <View style={[commonStyles.card, styles.progressCard]}>
           <Text style={styles.cardTitle}>Contribution Progress</Text>
           <View style={styles.progressBar}>
@@ -539,10 +597,12 @@ export default function RoundDetailScreen() {
     
     return (
       <View style={styles.tabContent}>
-        <Text style={styles.sectionTitle}>Contribution Tracking</Text>
-        <Text style={[commonStyles.textSecondary, { marginBottom: 16 }]}>
-          Track and manage contributions for this round
-        </Text>
+        <View style={[commonStyles.card, styles.contributionHeaderCard]}>
+          <Text style={styles.cardTitle}>Payment Tracking</Text>
+          <Text style={commonStyles.textSecondary}>
+            Record your payments and upload proof to keep the round transparent
+          </Text>
+        </View>
 
         {userContributions.length > 0 && (
           <View style={styles.contributionSection}>
@@ -583,24 +643,24 @@ export default function RoundDetailScreen() {
                   <View style={styles.contributionActions}>
                     {!isPaid && (
                       <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[styles.actionButton, styles.actionButtonHighlight]}
                         onPress={() => handleMarkAsPaid(contribution.id)}
                       >
                         <IconSymbol
                           ios_icon_name="checkmark.circle"
                           android_material_icon_name="check-circle"
                           size={18}
-                          color={colors.success}
+                          color="#FFFFFF"
                         />
-                        <Text style={[styles.actionButtonText, { color: colors.success }]}>
-                          Mark as Paid
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                          Record Payment
                         </Text>
                       </TouchableOpacity>
                     )}
                     
                     {canUploadProof && (
                       <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[styles.actionButton, styles.actionButtonHighlight]}
                         onPress={() => {
                           setSelectedContribution(contribution);
                           setProofModalVisible(true);
@@ -610,9 +670,9 @@ export default function RoundDetailScreen() {
                           ios_icon_name="arrow.up.doc"
                           android_material_icon_name="upload"
                           size={18}
-                          color={colors.primary}
+                          color="#FFFFFF"
                         />
-                        <Text style={[styles.actionButtonText, { color: colors.primary }]}>
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
                           Upload Proof
                         </Text>
                       </TouchableOpacity>
@@ -669,7 +729,7 @@ export default function RoundDetailScreen() {
                   {contribution.proofStatus && (
                     <View style={styles.contributionActions}>
                       <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[styles.actionButton, styles.actionButtonHighlight]}
                         onPress={() => {
                           setSelectedContribution(contribution);
                           handleViewProofs(contribution);
@@ -679,9 +739,9 @@ export default function RoundDetailScreen() {
                           ios_icon_name="eye"
                           android_material_icon_name="visibility"
                           size={18}
-                          color={colors.primary}
+                          color="#FFFFFF"
                         />
-                        <Text style={[styles.actionButtonText, { color: colors.primary }]}>
+                        <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
                           Review Proof
                         </Text>
                       </TouchableOpacity>
@@ -704,40 +764,56 @@ export default function RoundDetailScreen() {
 
   const renderMembers = () => (
     <View style={styles.tabContent}>
-      {isOrganizer && inviteCode && (
-        <View style={[commonStyles.card, styles.inviteCard]}>
-          <Text style={styles.cardTitle}>Add Members</Text>
-          <Text style={commonStyles.textSecondary}>Share this code with members to join:</Text>
-          <View style={styles.inviteCodeContainer}>
-            <Text style={styles.inviteCodeText}>{inviteCode}</Text>
-            <TouchableOpacity
-              style={styles.copyButton}
-              onPress={handleCopyCode}
-            >
-              <IconSymbol
-                ios_icon_name="doc.on.doc"
-                android_material_icon_name="content-copy"
-                size={20}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={handleShareInvite}
-          >
+      {isOrganizer && (
+        <View style={[commonStyles.card, styles.inviteCardProminent]}>
+          <View style={styles.inviteCardHeader}>
             <IconSymbol
-              ios_icon_name="square.and.arrow.up"
-              android_material_icon_name="share"
-              size={20}
-              color="#FFFFFF"
+              ios_icon_name="person.badge.plus.fill"
+              android_material_icon_name="group-add"
+              size={32}
+              color={colors.primary}
             />
-            <Text style={styles.shareButtonText}>Share Invite Link</Text>
-          </TouchableOpacity>
+            <Text style={styles.inviteCardTitle}>Invite Members</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Share this code with members to join your round
+          </Text>
+          {inviteCode ? (
+            <>
+              <View style={styles.inviteCodeContainer}>
+                <Text style={styles.inviteCodeText}>{inviteCode}</Text>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopyCode}
+                >
+                  <IconSymbol
+                    ios_icon_name="doc.on.doc"
+                    android_material_icon_name="content-copy"
+                    size={20}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.shareButton}
+                onPress={handleShareInvite}
+              >
+                <IconSymbol
+                  ios_icon_name="square.and.arrow.up"
+                  android_material_icon_name="share"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.shareButtonText}>Share Invite Link</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 16 }} />
+          )}
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Current Members</Text>
+      <Text style={styles.sectionTitle}>Current Members ({members.length})</Text>
       {members.map((member, index) => {
         const statusColor = getContributionStatusColor(member.contributionStatus);
         const statusText = getContributionStatusText(member.contributionStatus);
@@ -1233,6 +1309,53 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 16,
   },
+  quickActionCard: {
+    backgroundColor: colors.highlight,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  quickActionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  quickActionTitle: {
+    marginBottom: 0,
+  },
+  quickActionAmount: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  quickActionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  quickActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  quickActionButtonPrimary: {
+    backgroundColor: colors.success,
+  },
+  quickActionButtonSecondary: {
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  quickActionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   progressCard: {},
   progressBar: {
     height: 8,
@@ -1277,8 +1400,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  inviteCard: {
-    marginBottom: 16,
+  inviteCardProminent: {
+    backgroundColor: colors.highlight,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    marginBottom: 24,
+  },
+  inviteCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  inviteCardTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
   },
   inviteCodeContainer: {
     flexDirection: 'row',
@@ -1451,6 +1588,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  contributionHeaderCard: {
+    backgroundColor: colors.highlight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
   contributionSection: {
     marginBottom: 24,
   },
@@ -1493,6 +1635,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  actionButtonHighlight: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   actionButtonText: {
     fontSize: 14,
