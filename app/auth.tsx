@@ -70,8 +70,16 @@ export default function AuthScreen() {
   };
 
   const handleEmailAuth = async () => {
+    console.log("[Auth Screen] handleEmailAuth called, mode:", mode);
+    
+    // Validation
     if (!email || !password) {
       showAlert("Error", "Please enter email and password");
+      return;
+    }
+
+    if (!email.includes("@")) {
+      showAlert("Error", "Please enter a valid email address");
       return;
     }
 
@@ -87,12 +95,12 @@ export default function AuthScreen() {
       if (mode === "signin") {
         console.log("[Auth Screen] Calling signInWithEmail");
         await signInWithEmail(email, password);
-        console.log("[Auth Screen] Sign in successful, navigating to dashboard");
+        console.log("[Auth Screen] Sign in successful");
         // Navigation will be handled by _layout.tsx auth bootstrap
       } else {
         console.log("[Auth Screen] Calling signUpWithEmail");
         await signUpWithEmail(email, password, name || undefined);
-        console.log("[Auth Screen] Sign up successful, navigating to dashboard");
+        console.log("[Auth Screen] Sign up successful");
         // Navigation will be handled by _layout.tsx auth bootstrap
       }
     } catch (error: any) {

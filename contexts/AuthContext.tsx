@@ -126,8 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       console.log("[AuthContext] Signing in with email:", email);
-      const result = await authClient.signIn.email({ 
-        email, 
+      
+      // Better Auth client API - the data and options are in the same object
+      const result = await authClient.signIn.email({
+        email,
         password,
         fetchOptions: {
           onSuccess: async (ctx) => {
@@ -138,17 +140,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       });
+      
       console.log("[AuthContext] Sign in result:", result);
+      
+      // Check if there was an error in the result
+      if (result.error) {
+        throw new Error(result.error.message || "Sign in failed");
+      }
+      
+      // Fetch user after successful sign in
       await fetchUser();
-    } catch (error) {
+    } catch (error: any) {
       console.error("[AuthContext] Email sign in failed:", error);
-      throw error;
+      // Extract meaningful error message
+      const errorMessage = error?.message || "Sign in failed. Please check your credentials.";
+      throw new Error(errorMessage);
     }
   };
 
   const signUpWithEmail = async (email: string, password: string, name?: string) => {
     try {
-      console.log("[AuthContext] Signing up with email:", email);
+      console.log("[AuthContext] Signing up with email:", email, "name:", name);
+      
+      // Better Auth client API - the data and options are in the same object
       const result = await authClient.signUp.email({
         email,
         password,
@@ -162,11 +176,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       });
+      
       console.log("[AuthContext] Sign up result:", result);
+      
+      // Check if there was an error in the result
+      if (result.error) {
+        throw new Error(result.error.message || "Sign up failed");
+      }
+      
+      // Fetch user after successful sign up
       await fetchUser();
-    } catch (error) {
+    } catch (error: any) {
       console.error("[AuthContext] Email sign up failed:", error);
-      throw error;
+      // Extract meaningful error message
+      const errorMessage = error?.message || "Sign up failed. Please try again.";
+      throw new Error(errorMessage);
     }
   };
 
@@ -183,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const callbackURL = Linking.createURL("/(tabs)/dashboard");
         console.log("[AuthContext] Native callback URL:", callbackURL);
         
-        await authClient.signIn.social({
+        const result = await authClient.signIn.social({
           provider,
           callbackURL,
           fetchOptions: {
@@ -196,12 +220,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         });
         
+        console.log("[AuthContext] Social sign in result:", result);
+        
+        // Check if there was an error
+        if (result.error) {
+          throw new Error(result.error.message || `${provider} sign in failed`);
+        }
+        
         // The redirect will reload the app via deep linking
         // fetchUser will be called via the URL event listener
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[AuthContext] ${provider} sign in failed:`, error);
-      throw error;
+      const errorMessage = error?.message || `${provider} sign in failed`;
+      throw new Error(errorMessage);
     }
   };
 
