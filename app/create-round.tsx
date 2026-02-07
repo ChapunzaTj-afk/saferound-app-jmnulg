@@ -78,6 +78,28 @@ export default function CreateRoundScreen() {
     setErrorModalVisible(true);
   };
 
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    console.log('Create Round: Date picker event:', event.type, selectedDate);
+    
+    // On Android, the picker closes automatically after selection
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    
+    // Only update if user didn't cancel and a date was selected
+    if (event.type === 'set' && selectedDate) {
+      console.log('Create Round: Date selected:', selectedDate.toISOString());
+      updateField('startDate', selectedDate);
+    } else if (event.type === 'dismissed') {
+      console.log('Create Round: Date picker dismissed');
+    }
+    
+    // On iOS, keep the picker open until user explicitly closes it
+    if (Platform.OS === 'ios' && event.type === 'dismissed') {
+      setShowDatePicker(false);
+    }
+  };
+
   const handleCreateRound = async () => {
     try {
       setCreating(true);
@@ -166,7 +188,7 @@ export default function CreateRoundScreen() {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Currency</Text>
         <View style={styles.currencyRow}>
-          {['USD', 'EUR', 'GBP', 'NGN'].map((curr) => (
+          {['$', '€', '£'].map((curr) => (
             <TouchableOpacity
               key={curr}
               style={[
@@ -204,8 +226,8 @@ export default function CreateRoundScreen() {
         <Text style={styles.label}>Will you participate in this round?</Text>
         <View style={styles.optionGroup}>
           {[
-            { value: true, label: 'Yes, I&apos;m participating', desc: 'You will be included as a member and contribute' },
-            { value: false, label: 'No, I&apos;m only organising', desc: 'You will manage the round but not contribute' },
+            { value: true, label: 'Yes, I am participating', desc: 'You will be included as a member and contribute' },
+            { value: false, label: 'No, I am only organising', desc: 'You will manage the round but not contribute' },
           ].map((option) => (
             <TouchableOpacity
               key={option.value.toString()}
@@ -246,183 +268,214 @@ export default function CreateRoundScreen() {
     </View>
   );
 
-  const renderStep2 = () => (
-    <View style={styles.stepContent}>
-      <Text style={commonStyles.subtitle}>Step 2: Schedule</Text>
-      <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
-        Define when the round runs and how payouts rotate
-      </Text>
+  const renderStep2 = () => {
+    const selectedDateText = roundData.startDate 
+      ? roundData.startDate.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        })
+      : 'Select Date';
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Start Type</Text>
-        <View style={styles.optionGroup}>
-          {[
-            { value: 'immediate', label: 'Start Immediately', desc: 'Begin as soon as members join' },
-            { value: 'future', label: 'Start on a Future Date', desc: 'Schedule a specific start date' },
-            { value: 'in-progress', label: 'Already in Progress', desc: 'Round has already started' },
-          ].map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[
-                styles.optionCard,
-                roundData.startType === option.value && styles.optionCardActive,
-              ]}
-              onPress={() => updateField('startType', option.value)}
-            >
-              <View style={styles.optionHeader}>
-                <View
-                  style={[
-                    styles.radio,
-                    roundData.startType === option.value && styles.radioActive,
-                  ]}
-                />
-                <Text style={styles.optionLabel}>{option.label}</Text>
-              </View>
-              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+    return (
+      <View style={styles.stepContent}>
+        <Text style={commonStyles.subtitle}>Step 2: Schedule</Text>
+        <Text style={[commonStyles.textSecondary, styles.stepDescription]}>
+          Define when the round runs and how payouts rotate
+        </Text>
 
-      {(roundData.startType === 'future' || roundData.startType === 'in-progress') && (
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>
-            {roundData.startType === 'future' ? 'Start Date *' : 'Start Date (Past) *'}
-          </Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateButtonText}>
-              {roundData.startDate
-                ? roundData.startDate.toLocaleDateString()
-                : 'Select Date'}
+          <Text style={styles.label}>Start Type</Text>
+          <View style={styles.optionGroup}>
+            {[
+              { value: 'immediate', label: 'Start Immediately', desc: 'Begin as soon as members join' },
+              { value: 'future', label: 'Start on a Future Date', desc: 'Schedule a specific start date' },
+              { value: 'in-progress', label: 'Already in Progress', desc: 'Round has already started' },
+            ].map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.optionCard,
+                  roundData.startType === option.value && styles.optionCardActive,
+                ]}
+                onPress={() => {
+                  updateField('startType', option.value);
+                  // Clear the date when switching to immediate
+                  if (option.value === 'immediate') {
+                    updateField('startDate', undefined);
+                  }
+                }}
+              >
+                <View style={styles.optionHeader}>
+                  <View
+                    style={[
+                      styles.radio,
+                      roundData.startType === option.value && styles.radioActive,
+                    ]}
+                  />
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                </View>
+                <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {(roundData.startType === 'future' || roundData.startType === 'in-progress') && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              {roundData.startType === 'future' ? 'Start Date *' : 'Start Date (Past) *'}
             </Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => {
+                console.log('Create Round: User tapped date button');
+                setShowDatePicker(true);
+              }}
+            >
+              <Text style={[
+                styles.dateButtonText,
+                !roundData.startDate && styles.dateButtonPlaceholder
+              ]}>
+                {selectedDateText}
+              </Text>
+              <IconSymbol
+                ios_icon_name="calendar"
+                android_material_icon_name="calendar-today"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+            {roundData.startDate && (
+              <Text style={[commonStyles.textSecondary, { marginTop: 8 }]}>
+                Selected: {roundData.startDate.toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={roundData.startDate || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            minimumDate={roundData.startType === 'future' ? new Date() : undefined}
+            maximumDate={roundData.startType === 'in-progress' ? new Date() : undefined}
+          />
+        )}
+
+        {Platform.OS === 'ios' && showDatePicker && (
+          <TouchableOpacity
+            style={[styles.nextButton, { marginTop: 16 }]}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <Text style={styles.nextButtonText}>Done</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Contribution Frequency</Text>
+          <View style={styles.frequencyRow}>
+            {[
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'biweekly', label: 'Bi-weekly' },
+              { value: 'monthly', label: 'Monthly' },
+            ].map((freq) => (
+              <TouchableOpacity
+                key={freq.value}
+                style={[
+                  styles.frequencyButton,
+                  roundData.contributionFrequency === freq.value && styles.frequencyButtonActive,
+                ]}
+                onPress={() => updateField('contributionFrequency', freq.value)}
+              >
+                <Text
+                  style={[
+                    styles.frequencyButtonText,
+                    roundData.contributionFrequency === freq.value && styles.frequencyButtonTextActive,
+                  ]}
+                >
+                  {freq.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Number of Members *</Text>
+          <TextInput
+            style={styles.input}
+            value={roundData.numberOfMembers}
+            onChangeText={(text) => updateField('numberOfMembers', text)}
+            placeholder="e.g., 10"
+            placeholderTextColor={colors.textLight}
+            keyboardType="numeric"
+          />
+          <Text style={commonStyles.textSecondary}>
+            Total number of people in this round (including you)
+          </Text>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Payout Order</Text>
+          <View style={styles.optionGroup}>
+            {[
+              { value: 'fixed', label: 'Fixed Order', desc: 'Members receive payouts in a set sequence' },
+              { value: 'random', label: 'Random Order', desc: 'Payout order is randomized each cycle' },
+            ].map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.optionCard,
+                  roundData.payoutOrder === option.value && styles.optionCardActive,
+                ]}
+                onPress={() => updateField('payoutOrder', option.value)}
+              >
+                <View style={styles.optionHeader}>
+                  <View
+                    style={[
+                      styles.radio,
+                      roundData.payoutOrder === option.value && styles.radioActive,
+                    ]}
+                  />
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                </View>
+                <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.backButton} onPress={goToPreviousStep}>
             <IconSymbol
-              ios_icon_name="calendar"
-              android_material_icon_name="calendar-today"
+              ios_icon_name="arrow.left"
+              android_material_icon_name="arrow-back"
               size={20}
               color={colors.primary}
             />
+            <Text style={[styles.backButtonText]}>Back</Text>
           </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={roundData.startDate || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) {
-                  updateField('startDate', selectedDate);
-                }
-              }}
-              minimumDate={roundData.startType === 'future' ? new Date() : undefined}
-              maximumDate={roundData.startType === 'in-progress' ? new Date() : undefined}
+          <TouchableOpacity
+            style={[styles.nextButton, styles.nextButtonFlex, !canProceedStep2 && styles.buttonDisabled]}
+            onPress={goToNextStep}
+            disabled={!canProceedStep2}
+          >
+            <Text style={styles.nextButtonText}>Continue</Text>
+            <IconSymbol
+              ios_icon_name="arrow.right"
+              android_material_icon_name="arrow-forward"
+              size={20}
+              color="#FFFFFF"
             />
-          )}
-        </View>
-      )}
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Contribution Frequency</Text>
-        <View style={styles.frequencyRow}>
-          {[
-            { value: 'weekly', label: 'Weekly' },
-            { value: 'biweekly', label: 'Bi-weekly' },
-            { value: 'monthly', label: 'Monthly' },
-          ].map((freq) => (
-            <TouchableOpacity
-              key={freq.value}
-              style={[
-                styles.frequencyButton,
-                roundData.contributionFrequency === freq.value && styles.frequencyButtonActive,
-              ]}
-              onPress={() => updateField('contributionFrequency', freq.value)}
-            >
-              <Text
-                style={[
-                  styles.frequencyButtonText,
-                  roundData.contributionFrequency === freq.value && styles.frequencyButtonTextActive,
-                ]}
-              >
-                {freq.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          </TouchableOpacity>
         </View>
       </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Number of Members *</Text>
-        <TextInput
-          style={styles.input}
-          value={roundData.numberOfMembers}
-          onChangeText={(text) => updateField('numberOfMembers', text)}
-          placeholder="e.g., 10"
-          placeholderTextColor={colors.textLight}
-          keyboardType="numeric"
-        />
-        <Text style={commonStyles.textSecondary}>
-          Total number of people in this round (including you)
-        </Text>
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Payout Order</Text>
-        <View style={styles.optionGroup}>
-          {[
-            { value: 'fixed', label: 'Fixed Order', desc: 'Members receive payouts in a set sequence' },
-            { value: 'random', label: 'Random Order', desc: 'Payout order is randomized each cycle' },
-          ].map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[
-                styles.optionCard,
-                roundData.payoutOrder === option.value && styles.optionCardActive,
-              ]}
-              onPress={() => updateField('payoutOrder', option.value)}
-            >
-              <View style={styles.optionHeader}>
-                <View
-                  style={[
-                    styles.radio,
-                    roundData.payoutOrder === option.value && styles.radioActive,
-                  ]}
-                />
-                <Text style={styles.optionLabel}>{option.label}</Text>
-              </View>
-              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.backButton} onPress={goToPreviousStep}>
-          <IconSymbol
-            ios_icon_name="arrow.left"
-            android_material_icon_name="arrow-back"
-            size={20}
-            color={colors.primary}
-          />
-          <Text style={[styles.backButtonText]}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.nextButton, styles.nextButtonFlex, !canProceedStep2 && styles.buttonDisabled]}
-          onPress={goToNextStep}
-          disabled={!canProceedStep2}
-        >
-          <Text style={styles.nextButtonText}>Continue</Text>
-          <IconSymbol
-            ios_icon_name="arrow.right"
-            android_material_icon_name="arrow-forward"
-            size={20}
-            color="#FFFFFF"
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const renderStep3 = () => (
     <View style={styles.stepContent}>
@@ -835,6 +888,9 @@ const styles = StyleSheet.create({
   dateButtonText: {
     fontSize: 16,
     color: colors.text,
+  },
+  dateButtonPlaceholder: {
+    color: colors.textSecondary,
   },
   frequencyRow: {
     flexDirection: 'row',

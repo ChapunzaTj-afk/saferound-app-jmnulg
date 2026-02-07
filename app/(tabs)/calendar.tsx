@@ -71,6 +71,16 @@ export default function CalendarScreen() {
     loadPayouts();
   };
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    console.log('[Calendar] User changed view mode to:', mode);
+    setViewMode(mode);
+  };
+
+  const handleFilterModeChange = (mode: FilterMode) => {
+    console.log('[Calendar] User changed filter mode to:', mode);
+    setFilterMode(mode);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -127,10 +137,12 @@ export default function CalendarScreen() {
   };
 
   const goToPreviousMonth = () => {
+    console.log('[Calendar] User navigated to previous month');
     setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
 
   const goToNextMonth = () => {
+    console.log('[Calendar] User navigated to next month');
     setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
@@ -358,7 +370,7 @@ export default function CalendarScreen() {
               styles.toggleButton,
               viewMode === 'list' && styles.toggleButtonActive,
             ]}
-            onPress={() => setViewMode('list')}
+            onPress={() => handleViewModeChange('list')}
           >
             <IconSymbol
               ios_icon_name="list.bullet"
@@ -380,7 +392,7 @@ export default function CalendarScreen() {
               styles.toggleButton,
               viewMode === 'calendar' && styles.toggleButtonActive,
             ]}
-            onPress={() => setViewMode('calendar')}
+            onPress={() => handleViewModeChange('calendar')}
           >
             <IconSymbol
               ios_icon_name="calendar"
@@ -405,7 +417,7 @@ export default function CalendarScreen() {
               styles.filterButton,
               filterMode === 'all' && styles.filterButtonActive,
             ]}
-            onPress={() => setFilterMode('all')}
+            onPress={() => handleFilterModeChange('all')}
           >
             <Text
               style={[
@@ -421,7 +433,7 @@ export default function CalendarScreen() {
               styles.filterButton,
               filterMode === 'organized' && styles.filterButtonActive,
             ]}
-            onPress={() => setFilterMode('organized')}
+            onPress={() => handleFilterModeChange('organized')}
           >
             <Text
               style={[
@@ -437,7 +449,7 @@ export default function CalendarScreen() {
               styles.filterButton,
               filterMode === 'joined' && styles.filterButtonActive,
             ]}
-            onPress={() => setFilterMode('joined')}
+            onPress={() => handleFilterModeChange('joined')}
           >
             <Text
               style={[
