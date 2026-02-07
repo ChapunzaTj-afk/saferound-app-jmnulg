@@ -236,17 +236,23 @@ export default function RoundDetailScreen() {
     }
   };
 
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
   const handleDeleteRound = async () => {
     try {
       setDeleting(true);
-      console.log('[Round Detail] Deleting round:', id);
+      console.log('[Round Detail] Archiving round:', id);
       const { authenticatedDelete } = await import('@/utils/api');
       await authenticatedDelete(`/api/rounds/${id}/archive`, {});
-      console.log('[Round Detail] Round deleted successfully');
+      console.log('[Round Detail] Round archived successfully');
       setDeleteModalVisible(false);
       router.replace('/(tabs)/dashboard');
-    } catch (error) {
-      console.error('[Round Detail] Error deleting round:', error);
+    } catch (error: any) {
+      console.error('[Round Detail] Error archiving round:', error);
+      setDeleteModalVisible(false);
+      setErrorMessage(error.message || 'Failed to archive round. Only the organizer can archive rounds.');
+      setErrorModalVisible(true);
     } finally {
       setDeleting(false);
     }
@@ -1258,6 +1264,33 @@ export default function RoundDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={errorModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <IconSymbol
+              ios_icon_name="exclamationmark.triangle.fill"
+              android_material_icon_name="error"
+              size={48}
+              color={colors.error}
+              style={{ marginBottom: 16 }}
+            />
+            <Text style={styles.modalTitle}>Error</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalButtonPrimary, { width: '100%' }]}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.modalButtonTextPrimary}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1278,16 +1311,19 @@ const styles = StyleSheet.create({
   tabBar: {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   tabBarContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
+    gap: 4,
   },
   tab: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
+    marginHorizontal: 2,
   },
   tabActive: {
     borderBottomColor: colors.primary,
