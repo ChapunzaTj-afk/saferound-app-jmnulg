@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { Stack } from 'expo-router';
-import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
+import FloatingTabBar from '@/components/FloatingTabBar';
+import type { TabBarItem } from '@/components/FloatingTabBar';
 import { colors } from '@/styles/commonStyles';
 
 export default function TabLayout() {
@@ -11,6 +12,12 @@ export default function TabLayout() {
       route: '/(tabs)/dashboard',
       icon: 'home',
       label: 'Dashboard',
+    },
+    {
+      name: 'calendar',
+      route: '/(tabs)/calendar',
+      icon: 'calendar-today',
+      label: 'Calendar',
     },
     {
       name: 'profile',
@@ -29,6 +36,7 @@ export default function TabLayout() {
         }}
       >
         <Stack.Screen key="dashboard" name="dashboard" />
+        <Stack.Screen key="calendar" name="calendar" />
         <Stack.Screen key="profile" name="profile" />
       </Stack>
       <FloatingTabBar tabs={tabs} />

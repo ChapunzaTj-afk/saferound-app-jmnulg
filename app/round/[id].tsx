@@ -12,6 +12,7 @@ import {
   TextInput,
   Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
@@ -109,6 +110,7 @@ export default function RoundDetailScreen() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -128,6 +130,7 @@ export default function RoundDetailScreen() {
     loadMembers();
     loadTimeline();
     loadContributions();
+    loadInviteCode();
   }, [id]);
 
   const loadRound = async () => {
@@ -187,26 +190,44 @@ export default function RoundDetailScreen() {
     }
   };
 
-  const loadInviteLink = async () => {
+  const loadInviteCode = async () => {
+    if (!isOrganizer) return;
+    
     try {
       const { authenticatedGet } = await import('@/utils/api');
-      const data = await authenticatedGet<{ code: string; url: string }>(`/api/rounds/${id}/invite-link`);
-      console.log('[Round Detail] Invite link loaded:', data);
-      setInviteLink(data.url);
+      const data = await authenticatedGet<{ code: string; inviteUrl: string }>(`/api/rounds/${id}/invite-code`);
+      console.log('[Round Detail] Invite code loaded:', data);
+      setInviteCode(data.code);
+      setInviteLink(data.inviteUrl);
     } catch (error) {
-      console.error('[Round Detail] Error loading invite link:', error);
+      console.error('[Round Detail] Error loading invite code:', error);
+    }
+  };
+
+  const [copySuccessModalVisible, setCopySuccessModalVisible] = useState(false);
+
+  const handleCopyCode = async () => {
+    if (!inviteCode) return;
+    
+    try {
+      await Clipboard.setStringAsync(inviteCode);
+      console.log('[Round Detail] Invite code copied to clipboard');
+      setCopySuccessModalVisible(true);
+      setTimeout(() => setCopySuccessModalVisible(false), 2000);
+    } catch (error) {
+      console.error('[Round Detail] Error copying code:', error);
     }
   };
 
   const handleShareInvite = async () => {
-    if (!inviteLink) {
-      await loadInviteLink();
+    if (!inviteLink || !inviteCode) {
+      await loadInviteCode();
     }
     
-    if (inviteLink) {
+    if (inviteLink && inviteCode) {
       try {
         await Share.share({
-          message: `Join my SafeRound: ${round?.name}\n\n${inviteLink}`,
+          message: `Join my SafeRound: ${round?.name}\n\nInvite Code: ${inviteCode}\nLink: ${inviteLink}`,
           title: 'Join SafeRound',
         });
       } catch (error) {
@@ -515,19 +536,37 @@ export default function RoundDetailScreen() {
           </View>
         </View>
 
-        {isOrganizer && (
-          <TouchableOpacity
-            style={styles.inviteButton}
-            onPress={handleShareInvite}
-          >
-            <IconSymbol
-              ios_icon_name="person.badge.plus"
-              android_material_icon_name="group-add"
-              size={20}
-              color="#FFFFFF"
-            />
-            <Text style={styles.inviteButtonText}>Share Invite Link</Text>
-          </TouchableOpacity>
+        {isOrganizer && inviteCode && (
+          <View style={[commonStyles.card, styles.inviteCard]}>
+            <Text style={styles.cardTitle}>Invite Members</Text>
+            <Text style={commonStyles.textSecondary}>Share this code with members to join:</Text>
+            <View style={styles.inviteCodeContainer}>
+              <Text style={styles.inviteCodeText}>{inviteCode}</Text>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={handleCopyCode}
+              >
+                <IconSymbol
+                  ios_icon_name="doc.on.doc"
+                  android_material_icon_name="content-copy"
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={handleShareInvite}
+            >
+              <IconSymbol
+                ios_icon_name="square.and.arrow.up"
+                android_material_icon_name="share"
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text style={styles.shareButtonText}>Share Invite</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     );
@@ -1027,6 +1066,25 @@ export default function RoundDetailScreen() {
       </Modal>
 
       <Modal
+        visible={copySuccessModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCopySuccessModalVisible(false)}
+      >
+        <View style={styles.toastOverlay}>
+          <View style={styles.toastContent}>
+            <IconSymbol
+              ios_icon_name="checkmark.circle.fill"
+              android_material_icon_name="check-circle"
+              size={24}
+              color={colors.success}
+            />
+            <Text style={styles.toastText}>Invite code copied!</Text>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={viewProofsModalVisible}
         transparent
         animationType="slide"
@@ -1219,16 +1277,41 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  inviteButton: {
+  inviteCard: {
+    marginTop: 8,
+  },
+  inviteCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  inviteCodeText: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.primary,
+    letterSpacing: 2,
+  },
+  copyButton: {
+    padding: 8,
+  },
+  shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     gap: 8,
   },
-  inviteButtonText: {
+  shareButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -1516,5 +1599,30 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     width: '100%',
+  },
+  toastOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  toastContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  toastText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
   },
 });

@@ -10,6 +10,10 @@ export default function TabLayout() {
         <Label>Dashboard</Label>
         <Icon sf={{ default: 'house', selected: 'house.fill' }} drawable="home" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="calendar">
+        <Label>Calendar</Label>
+        <Icon sf={{ default: 'calendar', selected: 'calendar' }} drawable="calendar-today" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Label>Profile</Label>
         <Icon sf={{ default: 'person', selected: 'person.fill' }} drawable="person" />

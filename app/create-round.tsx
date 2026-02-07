@@ -24,6 +24,7 @@ interface RoundData {
   description: string;
   currency: string;
   contributionAmount: string;
+  organizerParticipates: boolean;
   startType: 'immediate' | 'future' | 'in-progress';
   startDate?: Date;
   contributionFrequency: 'weekly' | 'monthly' | 'biweekly';
@@ -47,6 +48,7 @@ export default function CreateRoundScreen() {
     description: '',
     currency: 'USD',
     contributionAmount: '',
+    organizerParticipates: true,
     startType: 'immediate',
     contributionFrequency: 'monthly',
     numberOfMembers: '',
@@ -101,6 +103,7 @@ export default function CreateRoundScreen() {
         description: roundData.description || undefined,
         currency: roundData.currency,
         contributionAmount: parseFloat(roundData.contributionAmount),
+        organizerParticipates: roundData.organizerParticipates,
         contributionFrequency: roundData.contributionFrequency,
         numberOfMembers: parseInt(roundData.numberOfMembers),
         payoutOrder: roundData.payoutOrder,
@@ -195,6 +198,36 @@ export default function CreateRoundScreen() {
           placeholderTextColor={colors.textLight}
           keyboardType="numeric"
         />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Will you participate in this round?</Text>
+        <View style={styles.optionGroup}>
+          {[
+            { value: true, label: 'Yes, I&apos;m participating', desc: 'You will be included as a member and contribute' },
+            { value: false, label: 'No, I&apos;m only organising', desc: 'You will manage the round but not contribute' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.value.toString()}
+              style={[
+                styles.optionCard,
+                roundData.organizerParticipates === option.value && styles.optionCardActive,
+              ]}
+              onPress={() => updateField('organizerParticipates', option.value)}
+            >
+              <View style={styles.optionHeader}>
+                <View
+                  style={[
+                    styles.radio,
+                    roundData.organizerParticipates === option.value && styles.radioActive,
+                  ]}
+                />
+                <Text style={styles.optionLabel}>{option.label}</Text>
+              </View>
+              <Text style={commonStyles.textSecondary}>{option.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <TouchableOpacity
@@ -502,6 +535,7 @@ export default function CreateRoundScreen() {
       roundData.startType === 'future' ? 'Start on Future Date' : 'Already in Progress';
     const payoutOrderLabel = roundData.payoutOrder === 'fixed' ? 'Fixed Order' : 'Random Order';
     const verificationLabel = roundData.paymentVerification === 'optional' ? 'Optional' : 'Mandatory';
+    const participationLabel = roundData.organizerParticipates ? 'Yes, participating' : 'No, only organising';
 
     return (
       <View style={styles.stepContent}>
@@ -527,6 +561,10 @@ export default function CreateRoundScreen() {
             <Text style={commonStyles.text}>
               {roundData.currency} {roundData.contributionAmount}
             </Text>
+          </View>
+          <View style={styles.reviewRow}>
+            <Text style={commonStyles.textSecondary}>Your Participation:</Text>
+            <Text style={commonStyles.text}>{participationLabel}</Text>
           </View>
         </View>
 
