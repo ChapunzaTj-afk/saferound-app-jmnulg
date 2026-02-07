@@ -1,0 +1,1 @@
+ALTER TABLE "rounds" ADD COLUMN "organizer_participates" boolean DEFAULT true NOT NULL;
