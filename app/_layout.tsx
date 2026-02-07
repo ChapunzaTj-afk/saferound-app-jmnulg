@@ -1,62 +1,67 @@
 
-import "react-native-reanimated";
-import React, { useEffect, useState } from "react";
-import { useFonts } from "expo-font";
-import { Stack, useRouter, usePathname } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
-import { SystemBars } from "react-native-edge-to-edge";
+import { colors } from "@/styles/commonStyles";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useColorScheme, View, ActivityIndicator } from "react-native";
+import "react-native-reanimated";
+import { StatusBar } from "expo-status-bar";
+import { SystemBars } from "react-native-edge-to-edge";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import React, { useEffect, useState } from "react";
 import {
   DarkTheme,
   DefaultTheme,
-  Theme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { StatusBar } from "expo-status-bar";
+import { useColorScheme, View, ActivityIndicator } from "react-native";
+import { Stack, useRouter, usePathname, useSegments } from "expo-router";
+import { useFonts } from "expo-font";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { colors } from "@/styles/commonStyles";
+import * as SplashScreen from "expo-splash-screen";
 
+// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-
-export const unstable_settings = {
-  initialRouteName: "auth",
-};
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
-  const pathname = usePathname();
   const router = useRouter();
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const segments = useSegments();
+  const pathname = usePathname();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
-    console.log("[Auth Bootstrap] Loading:", loading, "User:", user?.email || "none", "Pathname:", pathname);
+    console.log("[Auth Bootstrap] Loading:", loading, "User:", user ? user.email : "none", "Pathname:", pathname);
     
     if (loading) {
       console.log("[Auth Bootstrap] Still loading, waiting...");
       return;
     }
 
-    // Allow auth-related routes to render without redirect
-    const isAuthRoute = pathname === "/auth" || pathname === "/auth-popup" || pathname === "/auth-callback";
-    
-    if (!user && !isAuthRoute) {
-      // User not authenticated and not on auth page -> redirect to auth
+    // Prevent navigation loops
+    if (isNavigating) {
+      console.log("[Auth Bootstrap] Already navigating, skipping...");
+      return;
+    }
+
+    const inAuthGroup = segments[0] === "(tabs)";
+    const onAuthScreen = pathname === "/auth" || pathname === "/auth-callback" || pathname === "/auth-popup";
+
+    console.log("[Auth Bootstrap] In auth group:", inAuthGroup, "On auth screen:", onAuthScreen);
+
+    if (!user && !onAuthScreen) {
       console.log("[Auth Bootstrap] User not authenticated, redirecting to /auth");
+      setIsNavigating(true);
       router.replace("/auth");
-    } else if (user && isAuthRoute) {
-      // User authenticated but still on auth page -> redirect to dashboard
-      console.log("[Auth Bootstrap] User authenticated, redirecting to /dashboard");
+      setTimeout(() => setIsNavigating(false), 500);
+    } else if (user && onAuthScreen) {
+      console.log("[Auth Bootstrap] User authenticated, redirecting to dashboard");
+      setIsNavigating(true);
       router.replace("/(tabs)/dashboard");
+      setTimeout(() => setIsNavigating(false), 500);
     } else {
       console.log("[Auth Bootstrap] Navigation state is correct");
     }
+  }, [user, loading, pathname, segments]);
 
-    setIsNavigationReady(true);
-  }, [user, loading, pathname]);
-
-  if (loading || !isNavigationReady) {
+  if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -65,12 +70,17 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="auth" options={{ headerShown: false }} />
-      <Stack.Screen name="auth-popup" options={{ headerShown: false }} />
-      <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="create-round" options={{ presentation: "modal", headerShown: true, title: "Create Round" }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
+      <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
+      <Stack.Screen name="auth-popup" options={{ headerShown: false }} />
+      <Stack.Screen name="create-round" options={{ headerShown: true, title: "Create Round" }} />
       <Stack.Screen name="round/[id]" options={{ headerShown: true, title: "Round Details" }} />
       <Stack.Screen name="+not-found" />
     </Stack>
@@ -93,46 +103,17 @@ export default function RootLayout() {
     return null;
   }
 
-  const SafeRoundLightTheme: Theme = {
-    ...DefaultTheme,
-    dark: false,
-    colors: {
-      primary: colors.primary,
-      background: colors.background,
-      card: colors.card,
-      text: colors.text,
-      border: colors.border,
-      notification: colors.error,
-    },
-  };
-
-  const SafeRoundDarkTheme: Theme = {
-    ...DarkTheme,
-    colors: {
-      primary: colors.primary,
-      background: '#1A1A1A',
-      card: '#2A2A2A',
-      text: '#FFFFFF',
-      border: '#3A3A3A',
-      notification: colors.error,
-    },
-  };
-
   return (
-    <>
-      <StatusBar style="auto" animated />
-      <ThemeProvider
-        value={colorScheme === "dark" ? SafeRoundDarkTheme : SafeRoundLightTheme}
-      >
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AuthProvider>
           <WidgetProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <RootLayoutNav />
-              <SystemBars style="auto" />
-            </GestureHandlerRootView>
+            <RootLayoutNav />
+            <StatusBar style="auto" />
+            <SystemBars style="auto" />
           </WidgetProvider>
         </AuthProvider>
       </ThemeProvider>
-    </>
+    </GestureHandlerRootView>
   );
 }

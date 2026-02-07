@@ -1,54 +1,40 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
-import { Platform } from "react-native";
 
-type Status = "processing" | "success" | "error";
+import React, { useEffect } from "react";
+import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AuthCallbackScreen() {
-  const [status, setStatus] = useState<Status>("processing");
-  const [message, setMessage] = useState("Processing authentication...");
+  const router = useRouter();
+  const { fetchUser } = useAuth();
 
   useEffect(() => {
-    if (Platform.OS !== "web") return;
-    handleCallback();
+    console.log("[Auth Callback] Processing OAuth callback");
+    
+    // Give the auth system time to process the callback
+    const processCallback = async () => {
+      try {
+        // Wait a bit for the session to be established
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        console.log("[Auth Callback] Fetching user session");
+        await fetchUser();
+        
+        console.log("[Auth Callback] Redirecting to dashboard");
+        router.replace("/(tabs)/dashboard");
+      } catch (error) {
+        console.error("[Auth Callback] Error processing callback:", error);
+        router.replace("/auth");
+      }
+    };
+
+    processCallback();
   }, []);
-
-  const handleCallback = () => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get("better_auth_token");
-      const error = urlParams.get("error");
-
-      if (error) {
-        setStatus("error");
-        setMessage(`Authentication failed: ${error}`);
-        window.opener?.postMessage({ type: "oauth-error", error }, "*");
-        return;
-      }
-
-      if (token) {
-        setStatus("success");
-        setMessage("Authentication successful! Closing...");
-        window.opener?.postMessage({ type: "oauth-success", token }, "*");
-        setTimeout(() => window.close(), 1000);
-      } else {
-        setStatus("error");
-        setMessage("No authentication token received");
-        window.opener?.postMessage({ type: "oauth-error", error: "No token" }, "*");
-      }
-    } catch (err) {
-      setStatus("error");
-      setMessage("Failed to process authentication");
-      console.error("Auth callback error:", err);
-    }
-  };
 
   return (
     <View style={styles.container}>
-      {status === "processing" && <ActivityIndicator size="large" color="#007AFF" />}
-      {status === "success" && <Text style={styles.successIcon}>✓</Text>}
-      {status === "error" && <Text style={styles.errorIcon}>✗</Text>}
-      <Text style={styles.message}>{message}</Text>
+      <ActivityIndicator size="large" color="#007AFF" />
+      <Text style={styles.text}>Completing sign in...</Text>
     </View>
   );
 }
@@ -58,21 +44,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
     backgroundColor: "#fff",
   },
-  successIcon: {
-    fontSize: 48,
-    color: "#34C759",
-  },
-  errorIcon: {
-    fontSize: 48,
-    color: "#FF3B30",
-  },
-  message: {
-    fontSize: 18,
+  text: {
     marginTop: 20,
-    textAlign: "center",
+    fontSize: 16,
     color: "#333",
   },
 });

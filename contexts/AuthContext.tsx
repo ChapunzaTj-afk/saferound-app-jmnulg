@@ -2,7 +2,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
-import { authClient, setBearerToken, clearAuthTokens } from "@/lib/auth";
+import * as WebBrowser from "expo-web-browser";
+import { authClient, setBearerToken, clearAuthTokens, API_URL } from "@/lib/auth";
+
+// Configure WebBrowser for better OAuth experience
+WebBrowser.maybeCompleteAuthSession();
 
 interface User {
   id: string;
@@ -25,6 +29,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Web-only: Open OAuth popup
 function openOAuthPopup(provider: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const popupUrl = `${window.location.origin}/auth-popup?provider=${provider}`;
@@ -199,36 +204,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("[AuthContext] Starting social sign in with:", provider);
       
       if (Platform.OS === "web") {
+        // Web: Use popup window
         const token = await openOAuthPopup(provider);
         await setBearerToken(token);
         await fetchUser();
       } else {
-        // Native: Use expo-linking to generate a proper deep link
-        const callbackURL = Linking.createURL("/(tabs)/dashboard");
-        console.log("[AuthContext] Native callback URL:", callbackURL);
+        // Native: Use WebBrowser directly to avoid the Better Auth Expo client bug
+        // The redirect URI should match what's registered in the OAuth provider
+        const redirectUri = Linking.createURL("auth-callback");
+        console.log("[AuthContext] Native redirect URI:", redirectUri);
         
-        const result = await authClient.signIn.social({
-          provider,
-          callbackURL,
-          fetchOptions: {
-            onSuccess: async (ctx) => {
-              console.log("[AuthContext] Social sign in success:", ctx);
-            },
-            onError: (ctx) => {
-              console.error("[AuthContext] Social sign in error:", ctx.error);
-            }
-          }
-        });
+        // Construct the OAuth URL using Better Auth's endpoint
+        // Better Auth expects: /api/auth/sign-in/social
+        // But for native, we need to use the direct OAuth flow
+        const oauthUrl = `${API_URL}/api/auth/sign-in/social?provider=${provider}&callbackURL=${encodeURIComponent(redirectUri)}`;
         
-        console.log("[AuthContext] Social sign in result:", result);
+        console.log("[AuthContext] Opening OAuth URL:", oauthUrl);
         
-        // Check if there was an error
-        if (result.error) {
-          throw new Error(result.error.message || `${provider} sign in failed`);
+        // Open the OAuth flow in a browser
+        const result = await WebBrowser.openAuthSessionAsync(
+          oauthUrl,
+          redirectUri
+        );
+        
+        console.log("[AuthContext] WebBrowser result:", result);
+        
+        if (result.type === "success") {
+          console.log("[AuthContext] OAuth success, URL:", result.url);
+          // The session should now be set via cookies/storage
+          // Wait a bit for the session to be established
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          await fetchUser();
+        } else if (result.type === "cancel") {
+          throw new Error("Authentication cancelled");
+        } else {
+          throw new Error("Authentication failed");
         }
-        
-        // The redirect will reload the app via deep linking
-        // fetchUser will be called via the URL event listener
       }
     } catch (error: any) {
       console.error(`[AuthContext] ${provider} sign in failed:`, error);
