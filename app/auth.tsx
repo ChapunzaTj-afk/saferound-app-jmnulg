@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   View,
@@ -59,6 +60,7 @@ export default function AuthScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -73,25 +75,39 @@ export default function AuthScreen() {
       return;
     }
 
+    if (mode === "signup" && password.length < 8) {
+      showAlert("Error", "Password must be at least 8 characters");
+      return;
+    }
+
+    console.log("[Auth Screen] Starting email auth, mode:", mode);
     setLoading(true);
+    
     try {
       if (mode === "signin") {
+        console.log("[Auth Screen] Calling signInWithEmail");
         await signInWithEmail(email, password);
-        router.replace("/dashboard");
+        console.log("[Auth Screen] Sign in successful, navigating to dashboard");
+        // Navigation will be handled by _layout.tsx auth bootstrap
       } else {
-        await signUpWithEmail(email, password, name);
-        showAlert("Success", "Account created successfully!");
-        router.replace("/dashboard");
+        console.log("[Auth Screen] Calling signUpWithEmail");
+        await signUpWithEmail(email, password, name || undefined);
+        console.log("[Auth Screen] Sign up successful, navigating to dashboard");
+        // Navigation will be handled by _layout.tsx auth bootstrap
       }
     } catch (error: any) {
-      showAlert("Error", error.message || "Authentication failed");
+      console.error("[Auth Screen] Auth error:", error);
+      const errorMessage = error?.message || error?.toString() || "Authentication failed";
+      showAlert("Error", errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSocialAuth = async (provider: "google" | "apple" | "github") => {
+    console.log("[Auth Screen] Starting social auth with:", provider);
     setLoading(true);
+    
     try {
       if (provider === "google") {
         await signInWithGoogle();
@@ -100,10 +116,12 @@ export default function AuthScreen() {
       } else if (provider === "github") {
         await signInWithGitHub();
       }
-      router.replace("/dashboard");
+      console.log("[Auth Screen] Social auth initiated");
+      // Navigation will be handled by _layout.tsx auth bootstrap or deep link
     } catch (error: any) {
-      showAlert("Error", error.message || "Authentication failed");
-    } finally {
+      console.error("[Auth Screen] Social auth error:", error);
+      const errorMessage = error?.message || error?.toString() || "Authentication failed";
+      showAlert("Error", errorMessage);
       setLoading(false);
     }
   };
@@ -122,92 +140,102 @@ export default function AuthScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
-          <Text style={styles.title}>
-            {mode === "signin" ? "Sign In" : "Sign Up"}
-          </Text>
+            <Text style={styles.logo}>SafeRound</Text>
+            <Text style={styles.subtitle}>Community Savings Rounds</Text>
 
-          {mode === "signup" && (
+            <Text style={styles.title}>
+              {mode === "signin" ? "Sign In" : "Sign Up"}
+            </Text>
+
+            {mode === "signup" && (
+              <TextInput
+                style={styles.input}
+                placeholder="Name (optional)"
+                placeholderTextColor="#999"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                editable={!loading}
+              />
+            )}
+
             <TextInput
               style={styles.input}
-              placeholder="Name (optional)"
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
+              placeholder="Email"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
             />
-          )}
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              editable={!loading}
+            />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-          />
-
-          <TouchableOpacity
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-            onPress={handleEmailAuth}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>
-                {mode === "signin" ? "Sign In" : "Sign Up"}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchModeButton}
-            onPress={() => setMode(mode === "signin" ? "signup" : "signin")}
-          >
-            <Text style={styles.switchModeText}>
-              {mode === "signin"
-                ? "Don't have an account? Sign Up"
-                : "Already have an account? Sign In"}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={() => handleSocialAuth("google")}
-            disabled={loading}
-          >
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          {Platform.OS === "ios" && (
             <TouchableOpacity
-              style={[styles.socialButton, styles.appleButton]}
-              onPress={() => handleSocialAuth("apple")}
+              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              onPress={handleEmailAuth}
               disabled={loading}
             >
-              <Text style={[styles.socialButtonText, styles.appleButtonText]}>
-                Continue with Apple
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {mode === "signin" ? "Sign In" : "Sign Up"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.switchModeButton}
+              onPress={() => setMode(mode === "signin" ? "signup" : "signin")}
+              disabled={loading}
+            >
+              <Text style={styles.switchModeText}>
+                {mode === "signin"
+                  ? "Don't have an account? Sign Up"
+                  : "Already have an account? Sign In"}
               </Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.socialButton}
+              onPress={() => handleSocialAuth("google")}
+              disabled={loading}
+            >
+              <Text style={styles.socialButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+
+            {Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={[styles.socialButton, styles.appleButton]}
+                onPress={() => handleSocialAuth("apple")}
+                disabled={loading}
+              >
+                <Text style={[styles.socialButtonText, styles.appleButtonText]}>
+                  Continue with Apple
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </>
   );
 }
@@ -223,6 +251,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
   },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
+  },
   scrollContent: {
     flexGrow: 1,
   },
@@ -231,10 +264,23 @@ const styles = StyleSheet.create({
     padding: 24,
     justifyContent: "center",
   },
-  title: {
-    fontSize: 32,
+  logo: {
+    fontSize: 40,
     fontWeight: "bold",
-    marginBottom: 32,
+    textAlign: "center",
+    color: "#007AFF",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#666",
+    marginBottom: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 24,
     textAlign: "center",
     color: "#000",
   },
@@ -247,6 +293,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontSize: 16,
     backgroundColor: "#fff",
+    color: "#000",
   },
   primaryButton: {
     height: 50,

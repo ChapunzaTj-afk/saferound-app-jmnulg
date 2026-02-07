@@ -1,7 +1,7 @@
+
 import Constants from "expo-constants";
 import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
-import { BEARER_TOKEN_KEY } from "@/lib/auth";
+import { getBearerToken } from "@/lib/auth";
 
 /**
  * Backend URL is configured in app.json under expo.extra.backendUrl
@@ -14,26 +14,6 @@ export const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || "";
  */
 export const isBackendConfigured = (): boolean => {
   return !!BACKEND_URL && BACKEND_URL.length > 0;
-};
-
-/**
- * Get bearer token from platform-specific storage
- * Web: localStorage
- * Native: SecureStore
- *
- * @returns Bearer token or null if not found
- */
-export const getBearerToken = async (): Promise<string | null> => {
-  try {
-    if (Platform.OS === "web") {
-      return localStorage.getItem(BEARER_TOKEN_KEY);
-    } else {
-      return await SecureStore.getItemAsync(BEARER_TOKEN_KEY);
-    }
-  } catch (error) {
-    console.error("[API] Error retrieving bearer token:", error);
-    return null;
-  }
 };
 
 /**
@@ -53,7 +33,7 @@ export const apiCall = async <T = any>(
   }
 
   const url = `${BACKEND_URL}${endpoint}`;
-  console.log("[API] Calling:", url, options?.method || "GET");
+  console.log("[API] Calling:", options?.method || "GET", url);
 
   try {
     const fetchOptions: RequestInit = {
@@ -62,20 +42,24 @@ export const apiCall = async <T = any>(
         "Content-Type": "application/json",
         ...options?.headers,
       },
+      credentials: Platform.OS === "web" ? "include" : "omit",
     };
-
-    console.log("[API] Fetch options:", fetchOptions);
 
     // Always send the token if we have it (needed for cross-domain/iframe support)
     const token = await getBearerToken();
     if (token) {
+      console.log("[API] Adding bearer token to request");
       fetchOptions.headers = {
         ...fetchOptions.headers,
         Authorization: `Bearer ${token}`,
       };
+    } else {
+      console.log("[API] No bearer token found");
     }
 
     const response = await fetch(url, fetchOptions);
+
+    console.log("[API] Response status:", response.status);
 
     if (!response.ok) {
       const text = await response.text();
@@ -84,7 +68,7 @@ export const apiCall = async <T = any>(
     }
 
     const data = await response.json();
-    console.log("[API] Success:", data);
+    console.log("[API] Success response received");
     return data;
   } catch (error) {
     console.error("[API] Request failed:", error);

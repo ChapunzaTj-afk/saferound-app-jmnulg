@@ -2,7 +2,7 @@
 import "react-native-reanimated";
 import React, { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -26,27 +26,35 @@ export const unstable_settings = {
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
-  const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
+    console.log("[Auth Bootstrap] Loading:", loading, "User:", user?.email || "none", "Pathname:", pathname);
+    
+    if (loading) {
+      console.log("[Auth Bootstrap] Still loading, waiting...");
+      return;
+    }
 
-    const inAuthGroup = segments[0] === "auth" || segments[0] === "auth-popup" || segments[0] === "auth-callback";
-
-    if (!user && !inAuthGroup) {
-      // Redirect to auth if not authenticated
+    // Allow auth-related routes to render without redirect
+    const isAuthRoute = pathname === "/auth" || pathname === "/auth-popup" || pathname === "/auth-callback";
+    
+    if (!user && !isAuthRoute) {
+      // User not authenticated and not on auth page -> redirect to auth
       console.log("[Auth Bootstrap] User not authenticated, redirecting to /auth");
       router.replace("/auth");
-    } else if (user && inAuthGroup) {
-      // Redirect to dashboard if authenticated
+    } else if (user && isAuthRoute) {
+      // User authenticated but still on auth page -> redirect to dashboard
       console.log("[Auth Bootstrap] User authenticated, redirecting to /dashboard");
-      router.replace("/dashboard");
+      router.replace("/(tabs)/dashboard");
+    } else {
+      console.log("[Auth Bootstrap] Navigation state is correct");
     }
 
     setIsNavigationReady(true);
-  }, [user, loading, segments]);
+  }, [user, loading, pathname]);
 
   if (loading || !isNavigationReady) {
     return (
