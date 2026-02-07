@@ -48,7 +48,7 @@ function AlertModal({ visible, title, message, onClose }: AlertModalProps) {
 
 export default function AuthScreen() {
   const router = useRouter();
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithApple, signInWithGitHub } = useAuth();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithApple } = useAuth();
   
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -116,7 +116,7 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSocialAuth = async (provider: "google" | "apple" | "github") => {
+  const handleSocialAuth = async (provider: "google" | "apple") => {
     console.log("[Auth Screen] Social auth started, provider:", provider);
     setError("");
     setLoading(true);
@@ -128,9 +128,6 @@ export default function AuthScreen() {
       } else if (provider === "apple") {
         console.log("[Auth Screen] Calling signInWithApple");
         await signInWithApple();
-      } else if (provider === "github") {
-        console.log("[Auth Screen] Calling signInWithGitHub");
-        await signInWithGitHub();
       }
       console.log("[Auth Screen] Social auth successful");
       // Navigation will be handled by the auth context
@@ -246,16 +243,6 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity
-            style={[styles.socialButton, styles.githubButton]}
-            onPress={() => handleSocialAuth("github")}
-            disabled={loading}
-          >
-            <Text style={[styles.socialButtonText, styles.githubButtonText]}>
-              Continue with GitHub
-            </Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -366,19 +353,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     borderColor: "#000",
   },
-  githubButton: {
-    backgroundColor: "#24292e",
-    borderColor: "#24292e",
-  },
   socialButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#000",
   },
   appleButtonText: {
-    color: "#fff",
-  },
-  githubButtonText: {
     color: "#fff",
   },
   modalOverlay: {
