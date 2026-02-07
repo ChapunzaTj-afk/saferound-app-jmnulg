@@ -14,6 +14,7 @@ import { registerPayoutsViewRoutes } from './routes/payoutsView.js';
 import { registerNotificationsRoutes } from './routes/notificationsRoutes.js';
 import { registerRoundSettingsRoutes } from './routes/roundSettings.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
+import { registerCalendarRoutes } from './routes/calendar.js';
 
 // Combine schemas for full database type support
 const schema = { ...appSchema, ...authSchema };
@@ -119,6 +120,7 @@ registerPayoutsViewRoutes(app);
 registerNotificationsRoutes(app);
 registerRoundSettingsRoutes(app);
 registerDashboardRoutes(app);
+registerCalendarRoutes(app);
 
 await app.run();
 app.logger.info('SafeRound application started');

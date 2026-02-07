@@ -35,6 +35,7 @@ export function registerRoundsRoutes(app: App) {
       contributionAmount: rm.round.contributionAmount.toString(),
       contributionFrequency: rm.round.contributionFrequency,
       numberOfMembers: rm.round.numberOfMembers,
+      startDate: rm.round.startDate ? rm.round.startDate.toISOString() : null,
       organizerId: rm.round.organizerId,
       status: rm.round.status,
       role: rm.role,
@@ -100,6 +101,7 @@ export function registerRoundsRoutes(app: App) {
       gracePeriodDays: round.gracePeriodDays,
       conflictResolutionEnabled: round.conflictResolutionEnabled,
       paymentVerification: round.paymentVerification,
+      organizerParticipates: round.organizerParticipates,
       organizerId: round.organizerId,
       status: round.status,
       createdAt: round.createdAt.toISOString(),
@@ -136,6 +138,7 @@ export function registerRoundsRoutes(app: App) {
       gracePeriodDays?: number;
       conflictResolutionEnabled?: boolean;
       paymentVerification: string;
+      organizerParticipates?: boolean;
     };
 
     app.logger.info({ body }, 'Creating new round');
@@ -154,6 +157,8 @@ export function registerRoundsRoutes(app: App) {
         startDate = body.startDate ? new Date(body.startDate) : null;
       }
 
+      const organizerParticipates = body.organizerParticipates !== false; // default true
+
       // Create the round
       const [newRound] = await app.db.insert(schema.rounds).values({
         name: body.name,
@@ -168,6 +173,7 @@ export function registerRoundsRoutes(app: App) {
         gracePeriodDays: body.gracePeriodDays || 0,
         conflictResolutionEnabled: body.conflictResolutionEnabled || false,
         paymentVerification: body.paymentVerification,
+        organizerParticipates,
         organizerId: userId,
       }).returning();
 
@@ -176,8 +182,18 @@ export function registerRoundsRoutes(app: App) {
         roundId: newRound.id,
         userId: userId,
         role: 'organizer',
-        payoutPosition: 1,
+        payoutPosition: organizerParticipates ? 1 : null,
       });
+
+      // If organizer participates, also add as a regular member
+      if (organizerParticipates) {
+        await app.db.insert(schema.roundMembers).values({
+          roundId: newRound.id,
+          userId: userId,
+          role: 'member',
+          payoutPosition: newRound.payoutOrder === 'fixed' ? 1 : null,
+        });
+      }
 
       // Create timeline event: round_created
       await createTimelineEvent(
@@ -197,7 +213,7 @@ export function registerRoundsRoutes(app: App) {
       });
 
       app.logger.info(
-        { roundId: newRound.id, organizerId: userId, inviteCode },
+        { roundId: newRound.id, organizerId: userId, inviteCode, organizerParticipates },
         'Round created successfully with invite link'
       );
 
@@ -215,6 +231,7 @@ export function registerRoundsRoutes(app: App) {
         gracePeriodDays: newRound.gracePeriodDays,
         conflictResolutionEnabled: newRound.conflictResolutionEnabled,
         paymentVerification: newRound.paymentVerification,
+        organizerParticipates: newRound.organizerParticipates,
         organizerId: newRound.organizerId,
         status: newRound.status,
         inviteCode,

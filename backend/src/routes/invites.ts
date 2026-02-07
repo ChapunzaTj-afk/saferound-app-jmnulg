@@ -187,7 +187,7 @@ export function registerInvitesRoutes(app: App) {
     }
   });
 
-  // GET /api/rounds/:id/invite-link - Get invite link (organizer only)
+  // GET /api/rounds/:id/invite-link - Get invite link (organizer only) - DEPRECATED, use /api/rounds/:id/invite-code
   app.fastify.get('/api/rounds/:id/invite-link', async (
     request: FastifyRequest,
     reply: FastifyReply
@@ -244,6 +244,69 @@ export function registerInvitesRoutes(app: App) {
       return response;
     } catch (error) {
       app.logger.error({ err: error, roundId: id }, 'Failed to get invite link');
+      throw error;
+    }
+  });
+
+  // GET /api/rounds/:id/invite-code - Get invite code with URL (organizer only)
+  app.fastify.get('/api/rounds/:id/invite-code', async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<any | void> => {
+    const { id } = request.params as { id: string };
+    app.logger.info({ roundId: id }, 'Fetching invite code');
+
+    const session = await requireAuth(request, reply);
+    if (!session) return;
+
+    const userId = session.user.id;
+
+    try {
+      // Check if user is organizer
+      const round = await app.db.query.rounds.findFirst({
+        where: eq(schema.rounds.id, id),
+      });
+
+      if (!round) {
+        app.logger.warn({ roundId: id }, 'Round not found');
+        return reply.status(404).send({ error: 'Round not found' });
+      }
+
+      if (round.organizerId !== userId) {
+        app.logger.warn({ userId, roundId: id }, 'User is not organizer');
+        return reply.status(403).send({ error: 'Only organizer can view invite code' });
+      }
+
+      // Get existing invite link
+      let inviteLink = await app.db.query.inviteLinks.findFirst({
+        where: eq(schema.inviteLinks.roundId, id),
+      });
+
+      // If no invite link exists, create one
+      if (!inviteLink) {
+        const { generateInviteCode } = await import('../utils/helpers.js');
+        const code = generateInviteCode();
+        const [newLink] = await app.db.insert(schema.inviteLinks).values({
+          roundId: id,
+          code,
+          createdBy: userId,
+        }).returning();
+        inviteLink = newLink;
+      }
+
+      // Construct invite URL (base domain should be configurable in production)
+      const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+      const inviteUrl = `${baseUrl}/rounds/${inviteLink.code}/join`;
+
+      const response = {
+        code: inviteLink.code,
+        inviteUrl,
+      };
+
+      app.logger.info({ roundId: id, code: inviteLink.code }, 'Invite code retrieved');
+      return response;
+    } catch (error) {
+      app.logger.error({ err: error, roundId: id }, 'Failed to get invite code');
       throw error;
     }
   });

@@ -111,6 +111,7 @@ export function registerDashboardRoutes(app: App) {
             currency: round.currency,
             contributionAmount: round.contributionAmount.toString(),
             numberOfMembers: round.numberOfMembers,
+            startDate: round.startDate ? round.startDate.toISOString() : null,
             status: round.status,
             nextImportantDate: roundNextDate ? roundNextDate.toISOString() : null,
             nextImportantAction: roundNextAction,

@@ -17,6 +17,7 @@ export const rounds = pgTable('rounds', {
   gracePeriodDays: integer('grace_period_days').default(0).notNull(),
   conflictResolutionEnabled: boolean('conflict_resolution_enabled').default(false).notNull(),
   paymentVerification: text('payment_verification').notNull(), // 'optional' or 'mandatory'
+  organizerParticipates: boolean('organizer_participates').default(true).notNull(), // whether organizer is also a member
   organizerId: text('organizer_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   status: text('status').default('active').notNull(), // 'active', 'completed', 'cancelled'
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

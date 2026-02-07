@@ -15,6 +15,13 @@
       "when": 1770471632930,
       "tag": "20260207134032_wide_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770472629757,
+      "tag": "20260207135709_pretty_starfox",
+      "breakpoints": true
     }
   ]
 }
