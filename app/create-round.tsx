@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +39,9 @@ export default function CreateRoundScreen() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [roundData, setRoundData] = useState<RoundData>({
     name: '',
     description: '',
@@ -66,10 +71,30 @@ export default function CreateRoundScreen() {
     setCurrentStep(prev => prev - 1);
   };
 
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setErrorModalVisible(true);
+  };
+
   const handleCreateRound = async () => {
     try {
+      setCreating(true);
       console.log('[Create Round] Creating round with data:', roundData);
+      
       const { authenticatedPost } = await import('@/utils/api');
+      
+      // Prepare start date based on start type
+      let startDateISO: string | undefined;
+      if (roundData.startType === 'immediate') {
+        startDateISO = new Date().toISOString();
+      } else if (roundData.startType === 'future' || roundData.startType === 'in-progress') {
+        if (!roundData.startDate) {
+          showError('Please select a start date');
+          setCreating(false);
+          return;
+        }
+        startDateISO = roundData.startDate.toISOString();
+      }
       
       const payload = {
         name: roundData.name,
@@ -80,17 +105,23 @@ export default function CreateRoundScreen() {
         numberOfMembers: parseInt(roundData.numberOfMembers),
         payoutOrder: roundData.payoutOrder,
         startType: roundData.startType,
-        startDate: roundData.startDate?.toISOString(),
+        startDate: startDateISO,
         gracePeriodDays: parseInt(roundData.gracePeriodDays),
         conflictResolutionEnabled: roundData.conflictResolutionEnabled,
         paymentVerification: roundData.paymentVerification,
       };
       
+      console.log('[Create Round] Sending payload:', payload);
       const createdRound = await authenticatedPost('/api/rounds', payload);
       console.log('[Create Round] Round created successfully:', createdRound);
-      router.back();
-    } catch (error) {
+      
+      // Navigate to the newly created round
+      router.replace(`/round/${createdRound.id}`);
+    } catch (error: any) {
       console.error('[Create Round] Error creating round:', error);
+      showError(error.message || 'Failed to create round. Please try again.');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -220,9 +251,11 @@ export default function CreateRoundScreen() {
         </View>
       </View>
 
-      {roundData.startType === 'future' && (
+      {(roundData.startType === 'future' || roundData.startType === 'in-progress') && (
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Start Date</Text>
+          <Text style={styles.label}>
+            {roundData.startType === 'future' ? 'Start Date *' : 'Start Date (Past) *'}
+          </Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowDatePicker(true)}
@@ -250,6 +283,8 @@ export default function CreateRoundScreen() {
                   updateField('startDate', selectedDate);
                 }
               }}
+              minimumDate={roundData.startType === 'future' ? new Date() : undefined}
+              maximumDate={roundData.startType === 'in-progress' ? new Date() : undefined}
             />
           )}
         </View>
@@ -556,14 +591,21 @@ export default function CreateRoundScreen() {
           <TouchableOpacity
             style={[styles.createButton, styles.nextButtonFlex]}
             onPress={handleCreateRound}
+            disabled={creating}
           >
-            <IconSymbol
-              ios_icon_name="checkmark.circle.fill"
-              android_material_icon_name="check-circle"
-              size={20}
-              color="#FFFFFF"
-            />
-            <Text style={styles.nextButtonText}>Create Round</Text>
+            {creating ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.nextButtonText}>Create Round</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -607,6 +649,26 @@ export default function CreateRoundScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal
+        visible={errorModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Error</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setErrorModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -858,5 +920,41 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +30,7 @@ interface Round {
   role: string;
   nextImportantDate?: string;
   nextImportantAction?: string;
+  startDate?: string;
 }
 
 interface DashboardData {
@@ -36,6 +39,7 @@ interface DashboardData {
   nextImportantAction?: string;
   roundsCount: number;
   activeRounds: Round[];
+  unreadNotificationCount?: number;
 }
 
 export default function DashboardScreen() {
@@ -44,28 +48,46 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [joinModalVisible, setJoinModalVisible] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
 
   useEffect(() => {
-    console.log('Dashboard (iOS): User logged in, loading dashboard data');
+    console.log('Dashboard: User logged in, loading dashboard data');
     if (user) {
       loadDashboard();
     }
   }, [user]);
 
+  // Auto-refresh when screen comes into focus
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user && !loading && !refreshing) {
+        console.log('Dashboard: Auto-refreshing data');
+        loadDashboard();
+      }
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user, loading, refreshing]);
+
   const loadDashboard = async () => {
     try {
-      console.log('Dashboard (iOS): Fetching dashboard data');
-      // TODO: Backend Integration - GET /api/dashboard to fetch dashboard summary
-      const mockData: DashboardData = {
+      console.log('[Dashboard] Fetching dashboard data from /api/dashboard');
+      const { authenticatedGet } = await import('@/utils/api');
+      const data = await authenticatedGet<DashboardData>('/api/dashboard');
+      console.log('[Dashboard] Dashboard data loaded:', data);
+      setDashboardData(data);
+    } catch (error) {
+      console.error('[Dashboard] Error loading dashboard:', error);
+      // Fallback to empty state on error
+      setDashboardData({
         globalStatus: 'healthy',
-        nextImportantDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        nextImportantAction: 'Next contribution due',
+        nextImportantDate: undefined,
+        nextImportantAction: undefined,
         roundsCount: 0,
         activeRounds: [],
-      };
-      setDashboardData(mockData);
-    } catch (error) {
-      console.error('Dashboard (iOS): Error loading dashboard:', error);
+        unreadNotificationCount: 0,
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,23 +95,39 @@ export default function DashboardScreen() {
   };
 
   const onRefresh = () => {
-    console.log('Dashboard (iOS): User pulled to refresh');
+    console.log('Dashboard: User pulled to refresh');
     setRefreshing(true);
     loadDashboard();
   };
 
   const handleCreateRound = () => {
-    console.log('Dashboard (iOS): User tapped Create Round button');
+    console.log('Dashboard: User tapped Create Round button');
     router.push('/create-round');
   };
 
   const handleJoinRound = () => {
-    console.log('Dashboard (iOS): User tapped Join Round button');
+    console.log('Dashboard: User tapped Join Round button');
+    setJoinModalVisible(true);
+  };
+
+  const handleJoinWithCode = () => {
+    const code = inviteCode.trim();
+    if (code) {
+      console.log('Dashboard: Joining round with code:', code);
+      setJoinModalVisible(false);
+      setInviteCode('');
+      router.push(`/join/${code}`);
+    }
   };
 
   const handleRoundPress = (roundId: string) => {
-    console.log('Dashboard (iOS): User tapped round card:', roundId);
+    console.log('Dashboard: User tapped round card:', roundId);
     router.push(`/round/${roundId}`);
+  };
+
+  const handleNotificationsPress = () => {
+    console.log('Dashboard: User tapped notifications');
+    router.push('/notifications');
   };
 
   const formatDate = (dateString?: string) => {
@@ -118,26 +156,24 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <>
-        <Stack.Screen options={{ title: 'SafeRound', headerLargeTitle: true }} />
-        <View style={[commonStyles.container, styles.centerContent]}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[commonStyles.textSecondary, styles.loadingText]}>
-            Loading your rounds...
-          </Text>
-        </View>
-      </>
+      <View style={[commonStyles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[commonStyles.textSecondary, styles.loadingText]}>
+          Loading your rounds...
+        </Text>
+      </View>
     );
   }
 
   const statusColor = getStatusColor(dashboardData?.globalStatus || 'healthy');
   const statusText = getStatusText(dashboardData?.globalStatus || 'healthy');
   const nextDateFormatted = formatDate(dashboardData?.nextImportantDate);
+  const unreadCount = dashboardData?.unreadNotificationCount || 0;
 
   return (
     <>
-      <Stack.Screen options={{ title: 'SafeRound', headerLargeTitle: true }} />
-      <SafeAreaView style={commonStyles.wrapper} edges={['bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={commonStyles.wrapper} edges={['top']}>
         <ScrollView
           style={commonStyles.container}
           contentContainerStyle={styles.scrollContent}
@@ -145,6 +181,33 @@ export default function DashboardScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         >
+          <View style={styles.header}>
+            <View>
+              <Text style={commonStyles.title}>SafeRound</Text>
+              <Text style={commonStyles.textSecondary}>
+                Community savings, organized
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={handleNotificationsPress}
+            >
+              <IconSymbol
+                ios_icon_name="bell"
+                android_material_icon_name="notifications"
+                size={24}
+                color={colors.text}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
           <View style={[commonStyles.card, styles.statusCard]}>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -217,7 +280,7 @@ export default function DashboardScreen() {
                 {dashboardData.activeRounds.map((round, index) => {
                   const roleColor = round.role === 'organizer' ? colors.organizer : colors.member;
                   const roleText = round.role === 'organizer' ? 'Organizer' : 'Member';
-                  const nextDate = formatDate(round.nextImportantDate);
+                  const nextDate = formatDate(round.nextImportantDate || round.startDate);
                   
                   return (
                     <TouchableOpacity
@@ -270,7 +333,7 @@ export default function DashboardScreen() {
                         </View>
                       </View>
 
-                      {round.nextImportantDate && (
+                      {(round.nextImportantDate || round.startDate) && (
                         <>
                           <View style={commonStyles.divider} />
                           <View style={styles.roundFooter}>
@@ -305,6 +368,51 @@ export default function DashboardScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={joinModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setJoinModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Join a Round</Text>
+            <Text style={styles.modalDescription}>
+              Enter the invite code shared by the organizer
+            </Text>
+            
+            <TextInput
+              style={styles.codeInput}
+              value={inviteCode}
+              onChangeText={setInviteCode}
+              placeholder="Enter invite code"
+              placeholderTextColor={colors.textLight}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setJoinModalVisible(false);
+                  setInviteCode('');
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleJoinWithCode}
+                disabled={!inviteCode.trim()}
+              >
+                <Text style={styles.modalButtonTextPrimary}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -320,6 +428,33 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
+  },
+  header: {
+    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: colors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   statusCard: {
     marginBottom: 24,
@@ -427,5 +562,69 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  codeInput: {
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 18,
+    color: colors.text,
+    marginBottom: 24,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  modalButtonPrimary: {
+    backgroundColor: colors.primary,
+  },
+  modalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalButtonTextPrimary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
