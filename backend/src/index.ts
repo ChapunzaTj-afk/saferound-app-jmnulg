@@ -7,6 +7,12 @@ import { registerUserRoutes } from './routes/users.js';
 import { registerRoundsRoutes } from './routes/rounds.js';
 import { registerRoundMembersRoutes } from './routes/roundMembers.js';
 import { registerContributionsRoutes } from './routes/contributions.js';
+import { registerContributionsTrackingRoutes } from './routes/contributionsTracking.js';
+import { registerInvitesRoutes } from './routes/invites.js';
+import { registerTimelineRoutes } from './routes/timeline.js';
+import { registerPayoutsViewRoutes } from './routes/payoutsView.js';
+import { registerNotificationsRoutes } from './routes/notificationsRoutes.js';
+import { registerRoundSettingsRoutes } from './routes/roundSettings.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
 
 // Combine schemas for full database type support
@@ -106,6 +112,12 @@ registerUserRoutes(app);
 registerRoundsRoutes(app);
 registerRoundMembersRoutes(app);
 registerContributionsRoutes(app);
+registerContributionsTrackingRoutes(app);
+registerInvitesRoutes(app);
+registerTimelineRoutes(app);
+registerPayoutsViewRoutes(app);
+registerNotificationsRoutes(app);
+registerRoundSettingsRoutes(app);
 registerDashboardRoutes(app);
 
 await app.run();

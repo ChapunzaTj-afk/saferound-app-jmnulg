@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, integer, decimal, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, integer, decimal, boolean, index, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { user } from './auth-schema.js';
 
@@ -73,11 +73,82 @@ export const payouts = pgTable('payouts', {
   index('payouts_status_idx').on(table.status),
 ]);
 
+// Timeline events table: tracks all activities in a round
+export const timelineEvents = pgTable('timeline_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roundId: uuid('round_id').notNull().references(() => rounds.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }), // null for system events
+  eventType: text('event_type').notNull(), // member_joined, contribution_recorded, proof_uploaded, proof_approved, proof_rejected, round_created, round_updated, payout_scheduled, payout_completed
+  eventData: jsonb('event_data'), // event-specific data
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('timeline_events_round_id_idx').on(table.roundId),
+  index('timeline_events_user_id_idx').on(table.userId),
+  index('timeline_events_created_at_idx').on(table.createdAt),
+]);
+
+// Payment proofs table: tracks payment proof uploads and verification
+export const paymentProofs = pgTable('payment_proofs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  contributionId: uuid('contribution_id').notNull().references(() => contributions.id, { onDelete: 'cascade' }),
+  roundId: uuid('round_id').notNull().references(() => rounds.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  proofType: text('proof_type').notNull(), // image, file, reference
+  proofUrl: text('proof_url'), // URL to uploaded image/file
+  referenceText: text('reference_text'), // text reference (e.g., transaction ID)
+  status: text('status').notNull().default('pending'), // pending, approved, rejected
+  reviewedBy: text('reviewed_by').references(() => user.id, { onDelete: 'set null' }), // organizer who reviewed
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('payment_proofs_contribution_id_idx').on(table.contributionId),
+  index('payment_proofs_round_id_idx').on(table.roundId),
+  index('payment_proofs_user_id_idx').on(table.userId),
+  index('payment_proofs_status_idx').on(table.status),
+]);
+
+// Notifications table: tracks user notifications
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  roundId: uuid('round_id').references(() => rounds.id, { onDelete: 'cascade' }), // nullable for non-round notifications
+  type: text('type').notNull(), // contribution_due, payout_upcoming, proof_approved, proof_rejected, member_joined, round_updated
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  category: text('category').notNull(), // action_required, upcoming, information
+  read: boolean('read').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('notifications_user_id_idx').on(table.userId),
+  index('notifications_round_id_idx').on(table.roundId),
+  index('notifications_read_idx').on(table.read),
+]);
+
+// Invite links table: tracks shareable invite codes for rounds
+export const inviteLinks = pgTable('invite_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roundId: uuid('round_id').notNull().references(() => rounds.id, { onDelete: 'cascade' }),
+  code: text('code').notNull().unique(), // short shareable code
+  createdBy: text('created_by').notNull().references(() => user.id, { onDelete: 'cascade' }), // organizer user_id
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  maxUses: integer('max_uses'), // nullable for unlimited
+  useCount: integer('use_count').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('invite_links_round_id_idx').on(table.roundId),
+  index('invite_links_code_idx').on(table.code),
+]);
+
 // Relations
 export const roundsRelations = relations(rounds, ({ many, one }) => ({
   members: many(roundMembers),
   contributions: many(contributions),
   payouts: many(payouts),
+  timelineEvents: many(timelineEvents),
+  paymentProofs: many(paymentProofs),
+  notifications: many(notifications),
+  inviteLinks: many(inviteLinks),
   organizer: one(user, {
     fields: [rounds.organizerId],
     references: [user.id],
@@ -113,6 +184,58 @@ export const payoutsRelations = relations(payouts, ({ one }) => ({
   }),
   recipient: one(user, {
     fields: [payouts.recipientUserId],
+    references: [user.id],
+  }),
+}));
+
+export const timelineEventsRelations = relations(timelineEvents, ({ one }) => ({
+  round: one(rounds, {
+    fields: [timelineEvents.roundId],
+    references: [rounds.id],
+  }),
+  user: one(user, {
+    fields: [timelineEvents.userId],
+    references: [user.id],
+  }),
+}));
+
+export const paymentProofsRelations = relations(paymentProofs, ({ one }) => ({
+  contribution: one(contributions, {
+    fields: [paymentProofs.contributionId],
+    references: [contributions.id],
+  }),
+  round: one(rounds, {
+    fields: [paymentProofs.roundId],
+    references: [rounds.id],
+  }),
+  user: one(user, {
+    fields: [paymentProofs.userId],
+    references: [user.id],
+  }),
+  reviewer: one(user, {
+    fields: [paymentProofs.reviewedBy],
+    references: [user.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(user, {
+    fields: [notifications.userId],
+    references: [user.id],
+  }),
+  round: one(rounds, {
+    fields: [notifications.roundId],
+    references: [rounds.id],
+  }),
+}));
+
+export const inviteLinksRelations = relations(inviteLinks, ({ one }) => ({
+  round: one(rounds, {
+    fields: [inviteLinks.roundId],
+    references: [rounds.id],
+  }),
+  creator: one(user, {
+    fields: [inviteLinks.createdBy],
     references: [user.id],
   }),
 }));

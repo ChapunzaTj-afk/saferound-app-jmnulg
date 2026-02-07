@@ -2,6 +2,7 @@ import type { App } from '../index.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { eq, and, or, desc } from 'drizzle-orm';
 import * as schema from '../db/schema.js';
+import { generateInviteCode, createTimelineEvent } from '../utils/helpers.js';
 
 export function registerRoundsRoutes(app: App) {
   const requireAuth = app.requireAuth();
@@ -145,6 +146,14 @@ export function registerRoundsRoutes(app: App) {
     const userId = session.user.id;
 
     try {
+      // Calculate start_date based on startType
+      let startDate: Date | null = null;
+      if (body.startType === 'immediate') {
+        startDate = new Date();
+      } else if (body.startType === 'future' || body.startType === 'in-progress') {
+        startDate = body.startDate ? new Date(body.startDate) : null;
+      }
+
       // Create the round
       const [newRound] = await app.db.insert(schema.rounds).values({
         name: body.name,
@@ -155,7 +164,7 @@ export function registerRoundsRoutes(app: App) {
         numberOfMembers: body.numberOfMembers,
         payoutOrder: body.payoutOrder,
         startType: body.startType,
-        startDate: body.startDate ? new Date(body.startDate) : null,
+        startDate,
         gracePeriodDays: body.gracePeriodDays || 0,
         conflictResolutionEnabled: body.conflictResolutionEnabled || false,
         paymentVerification: body.paymentVerification,
@@ -163,14 +172,34 @@ export function registerRoundsRoutes(app: App) {
       }).returning();
 
       // Add organizer as a round member with organizer role
-      const [organizerMember] = await app.db.insert(schema.roundMembers).values({
+      await app.db.insert(schema.roundMembers).values({
         roundId: newRound.id,
         userId: userId,
         role: 'organizer',
         payoutPosition: 1,
-      }).returning();
+      });
 
-      app.logger.info({ roundId: newRound.id, organizerId: userId }, 'Round created successfully');
+      // Create timeline event: round_created
+      await createTimelineEvent(
+        app,
+        newRound.id,
+        'round_created',
+        userId,
+        { roundName: newRound.name }
+      );
+
+      // Generate and create invite link
+      const inviteCode = generateInviteCode();
+      await app.db.insert(schema.inviteLinks).values({
+        roundId: newRound.id,
+        code: inviteCode,
+        createdBy: userId,
+      });
+
+      app.logger.info(
+        { roundId: newRound.id, organizerId: userId, inviteCode },
+        'Round created successfully with invite link'
+      );
 
       return {
         id: newRound.id,
@@ -188,6 +217,7 @@ export function registerRoundsRoutes(app: App) {
         paymentVerification: newRound.paymentVerification,
         organizerId: newRound.organizerId,
         status: newRound.status,
+        inviteCode,
         createdAt: newRound.createdAt.toISOString(),
         updatedAt: newRound.updatedAt.toISOString(),
       };

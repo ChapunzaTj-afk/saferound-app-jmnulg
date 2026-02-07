@@ -33,6 +33,12 @@ export function registerDashboardRoutes(app: App) {
         },
       });
 
+      // Get unread notifications
+      const unreadNotifications = await app.db.query.notifications.findMany({
+        where: (notif, { and, eq }) =>
+          and(eq(notif.userId, userId), eq(notif.read, false)),
+      });
+
       if (!userRounds || userRounds.length === 0) {
         app.logger.info({ userId }, 'No active rounds found');
         return {
@@ -40,6 +46,8 @@ export function registerDashboardRoutes(app: App) {
           nextImportantDate: null,
           nextImportantAction: null,
           roundsCount: 0,
+          unreadNotificationCount: unreadNotifications.length,
+          actionItems: [],
           activeRounds: [],
         };
       }
@@ -109,8 +117,40 @@ export function registerDashboardRoutes(app: App) {
           };
         });
 
+      // Collect action items (pending proofs, overdue contributions)
+      const actionItems: any[] = [];
+      for (const ur of userRounds) {
+        const round = ur.round;
+        // Get pending proofs
+        const pendingProofs = await app.db.query.paymentProofs.findMany({
+          where: (proof, { and, eq }) =>
+            and(eq(proof.roundId, round.id), eq(proof.status, 'pending')),
+        });
+        if (pendingProofs.length > 0 && ur.role === 'organizer') {
+          actionItems.push({
+            type: 'pending_proofs',
+            roundId: round.id,
+            roundName: round.name,
+            count: pendingProofs.length,
+          });
+        }
+
+        // Get overdue contributions
+        const overdueContributions = ur.round.contributions.filter(
+          c => c.userId === userId && c.status === 'late'
+        );
+        if (overdueContributions.length > 0) {
+          actionItems.push({
+            type: 'overdue_contributions',
+            roundId: round.id,
+            roundName: round.name,
+            count: overdueContributions.length,
+          });
+        }
+      }
+
       app.logger.info(
-        { userId, roundsCount: activeRounds.length, globalStatus },
+        { userId, roundsCount: activeRounds.length, globalStatus, unreadNotifications: unreadNotifications.length },
         'Dashboard summary retrieved'
       );
 
@@ -119,6 +159,8 @@ export function registerDashboardRoutes(app: App) {
         nextImportantDate: nextImportantDate ? nextImportantDate.toISOString() : null,
         nextImportantAction,
         roundsCount: activeRounds.length,
+        unreadNotificationCount: unreadNotifications.length,
+        actionItems,
         activeRounds,
       };
     } catch (error) {
