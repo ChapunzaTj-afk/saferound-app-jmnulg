@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useAuth } from '@/contexts/AuthContext';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 interface RoundData {
   name: string;
@@ -27,6 +27,7 @@ interface RoundData {
   organizerParticipates: boolean;
   startType: 'immediate' | 'future' | 'in-progress';
   startDate?: Date;
+  manualDateInput: string;
   contributionFrequency: 'weekly' | 'monthly' | 'biweekly';
   numberOfMembers: string;
   payoutOrder: 'fixed' | 'random';
@@ -50,6 +51,7 @@ export default function CreateRoundScreen() {
     contributionAmount: '',
     organizerParticipates: true,
     startType: 'immediate',
+    manualDateInput: '',
     contributionFrequency: 'monthly',
     numberOfMembers: '',
     payoutOrder: 'fixed',
@@ -78,25 +80,72 @@ export default function CreateRoundScreen() {
     setErrorModalVisible(true);
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     console.log('Create Round: Date picker event:', event.type, selectedDate);
     
-    // On Android, the picker closes automatically after selection
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
     
-    // Only update if user didn't cancel and a date was selected
     if (event.type === 'set' && selectedDate) {
       console.log('Create Round: Date selected:', selectedDate.toISOString());
       updateField('startDate', selectedDate);
+      const formattedDate = formatDateForInput(selectedDate);
+      updateField('manualDateInput', formattedDate);
     } else if (event.type === 'dismissed') {
       console.log('Create Round: Date picker dismissed');
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
+    }
+  };
+
+  const formatDateForInput = (date: Date): string => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseManualDate = (input: string): Date | null => {
+    const parts = input.split('/');
+    if (parts.length !== 3) {
+      return null;
     }
     
-    // On iOS, keep the picker open until user explicitly closes it
-    if (Platform.OS === 'ios' && event.type === 'dismissed') {
-      setShowDatePicker(false);
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    
+    if (isNaN(day) || isNaN(month) || isNaN(year)) {
+      return null;
+    }
+    
+    if (day < 1 || day > 31 || month < 0 || month > 11 || year < 1900 || year > 2100) {
+      return null;
+    }
+    
+    const date = new Date(year, month, day);
+    
+    if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) {
+      return null;
+    }
+    
+    return date;
+  };
+
+  const handleManualDateChange = (text: string) => {
+    console.log('Create Round: Manual date input:', text);
+    updateField('manualDateInput', text);
+    
+    if (text.length === 10) {
+      const parsedDate = parseManualDate(text);
+      if (parsedDate) {
+        console.log('Create Round: Valid date parsed:', parsedDate.toISOString());
+        updateField('startDate', parsedDate);
+      } else {
+        console.log('Create Round: Invalid date format');
+      }
     }
   };
 
@@ -107,7 +156,6 @@ export default function CreateRoundScreen() {
       
       const { authenticatedPost } = await import('@/utils/api');
       
-      // Prepare start date based on start type
       let startDateISO: string | undefined;
       if (roundData.startType === 'immediate') {
         startDateISO = new Date().toISOString();
@@ -140,7 +188,6 @@ export default function CreateRoundScreen() {
       const createdRound = await authenticatedPost('/api/rounds', payload);
       console.log('[Create Round] Round created successfully:', createdRound);
       
-      // Navigate to the newly created round
       router.replace(`/round/${createdRound.id}`);
     } catch (error: any) {
       console.error('[Create Round] Error creating round:', error);
@@ -301,9 +348,9 @@ export default function CreateRoundScreen() {
                 ]}
                 onPress={() => {
                   updateField('startType', option.value);
-                  // Clear the date when switching to immediate
                   if (option.value === 'immediate') {
                     updateField('startDate', undefined);
+                    updateField('manualDateInput', '');
                   }
                 }}
               >
@@ -327,10 +374,11 @@ export default function CreateRoundScreen() {
             <Text style={styles.label}>
               {roundData.startType === 'future' ? 'Start Date *' : 'Start Date (Past) *'}
             </Text>
+            
             <TouchableOpacity
               style={styles.dateButton}
               onPress={() => {
-                console.log('Create Round: User tapped date button');
+                console.log('Create Round: User tapped date button to open picker');
                 setShowDatePicker(true);
               }}
             >
@@ -347,32 +395,63 @@ export default function CreateRoundScreen() {
                 color={colors.primary}
               />
             </TouchableOpacity>
+
+            <Text style={[commonStyles.textSecondary, { marginTop: 12, marginBottom: 8 }]}>
+              Or enter date manually (DD/MM/YYYY):
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={roundData.manualDateInput}
+              onChangeText={handleManualDateChange}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textLight}
+              keyboardType="numeric"
+              maxLength={10}
+            />
+            
             {roundData.startDate && (
-              <Text style={[commonStyles.textSecondary, { marginTop: 8 }]}>
-                Selected: {roundData.startDate.toLocaleDateString()}
-              </Text>
+              <View style={styles.selectedDateDisplay}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={16}
+                  color={colors.success}
+                />
+                <Text style={[commonStyles.textSecondary, { marginLeft: 6 }]}>
+                  Selected: {roundData.startDate.toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+              </View>
             )}
           </View>
         )}
 
         {showDatePicker && (
-          <DateTimePicker
-            value={roundData.startDate || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDateChange}
-            minimumDate={roundData.startType === 'future' ? new Date() : undefined}
-            maximumDate={roundData.startType === 'in-progress' ? new Date() : undefined}
-          />
-        )}
-
-        {Platform.OS === 'ios' && showDatePicker && (
-          <TouchableOpacity
-            style={[styles.nextButton, { marginTop: 16 }]}
-            onPress={() => setShowDatePicker(false)}
-          >
-            <Text style={styles.nextButtonText}>Done</Text>
-          </TouchableOpacity>
+          <>
+            <DateTimePicker
+              value={roundData.startDate || new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={handleDateChange}
+              minimumDate={roundData.startType === 'future' ? new Date() : undefined}
+              maximumDate={roundData.startType === 'in-progress' ? new Date() : undefined}
+            />
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity
+                style={[styles.nextButton, { marginTop: 16 }]}
+                onPress={() => {
+                  console.log('Create Round: User closed iOS date picker');
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.nextButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         <View style={styles.inputGroup}>
@@ -891,6 +970,15 @@ const styles = StyleSheet.create({
   },
   dateButtonPlaceholder: {
     color: colors.textSecondary,
+  },
+  selectedDateDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.highlight,
+    borderRadius: 8,
   },
   frequencyRow: {
     flexDirection: 'row',

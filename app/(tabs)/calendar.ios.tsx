@@ -28,7 +28,6 @@ interface PayoutEvent {
   status: 'scheduled' | 'completed';
 }
 
-type ViewMode = 'calendar' | 'list';
 type FilterMode = 'all' | 'organized' | 'joined';
 
 export default function CalendarScreen() {
@@ -37,9 +36,7 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [payouts, setPayouts] = useState<PayoutEvent[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
 
   useEffect(() => {
     if (user) {
@@ -71,11 +68,6 @@ export default function CalendarScreen() {
     loadPayouts();
   };
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    console.log('[Calendar] User changed view mode to:', mode);
-    setViewMode(mode);
-  };
-
   const handleFilterModeChange = (mode: FilterMode) => {
     console.log('[Calendar] User changed filter mode to:', mode);
     setFilterMode(mode);
@@ -91,200 +83,9 @@ export default function CalendarScreen() {
     });
   };
 
-  const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const getPayoutsForMonth = (month: Date) => {
-    const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-    const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-    
-    return payouts.filter(payout => {
-      const payoutDate = new Date(payout.payoutDate);
-      return payoutDate >= monthStart && payoutDate <= monthEnd;
-    });
-  };
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
-    return { daysInMonth, startingDayOfWeek };
-  };
-
-  const getPayoutsForDay = (day: number) => {
-    const targetDate = new Date(
-      selectedMonth.getFullYear(),
-      selectedMonth.getMonth(),
-      day
-    );
-    
-    return payouts.filter(payout => {
-      const payoutDate = new Date(payout.payoutDate);
-      return (
-        payoutDate.getDate() === day &&
-        payoutDate.getMonth() === targetDate.getMonth() &&
-        payoutDate.getFullYear() === targetDate.getFullYear()
-      );
-    });
-  };
-
-  const goToPreviousMonth = () => {
-    console.log('[Calendar] User navigated to previous month');
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const goToNextMonth = () => {
-    console.log('[Calendar] User navigated to next month');
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
   const handlePayoutPress = (payout: PayoutEvent) => {
     console.log('[Calendar] User tapped payout:', payout.roundName);
     router.push(`/round/${payout.roundId}`);
-  };
-
-  const renderCalendarView = () => {
-    const { daysInMonth, startingDayOfWeek } = getDaysInMonth(selectedMonth);
-    const monthPayouts = getPayoutsForMonth(selectedMonth);
-    const weeks = [];
-    let days = [];
-
-    const emptyDays = Array(startingDayOfWeek).fill(null);
-    days.push(...emptyDays);
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(day);
-      
-      if (days.length === 7) {
-        weeks.push(days);
-        days = [];
-      }
-    }
-
-    if (days.length > 0) {
-      while (days.length < 7) {
-        days.push(null);
-      }
-      weeks.push(days);
-    }
-
-    return (
-      <View style={styles.calendarContainer}>
-        <View style={styles.calendarHeader}>
-          <TouchableOpacity onPress={goToPreviousMonth} style={styles.monthNavButton}>
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="chevron-left"
-              size={24}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
-          <Text style={styles.monthTitle}>{formatMonthYear(selectedMonth)}</Text>
-          <TouchableOpacity onPress={goToNextMonth} style={styles.monthNavButton}>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={24}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.weekdayHeader}>
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-            <View key={index} style={styles.weekdayCell}>
-              <Text style={styles.weekdayText}>{day}</Text>
-            </View>
-          ))}
-        </View>
-
-        {weeks.map((week, weekIndex) => (
-          <View key={weekIndex} style={styles.weekRow}>
-            {week.map((day, dayIndex) => {
-              const dayPayouts = day ? getPayoutsForDay(day) : [];
-              const hasPayouts = dayPayouts.length > 0;
-              const isToday = day && 
-                new Date().getDate() === day &&
-                new Date().getMonth() === selectedMonth.getMonth() &&
-                new Date().getFullYear() === selectedMonth.getFullYear();
-
-              return (
-                <TouchableOpacity
-                  key={dayIndex}
-                  style={[
-                    styles.dayCell,
-                    !day && styles.dayCellEmpty,
-                    isToday && styles.dayCellToday,
-                  ]}
-                  disabled={!day || !hasPayouts}
-                  onPress={() => {
-                    if (day && hasPayouts) {
-                      console.log('[Calendar] User tapped day:', day, 'with', dayPayouts.length, 'payouts');
-                    }
-                  }}
-                >
-                  {day && (
-                    <>
-                      <Text style={[styles.dayText, isToday && styles.dayTextToday]}>
-                        {day}
-                      </Text>
-                      {hasPayouts && (
-                        <View style={styles.payoutIndicator}>
-                          <Text style={styles.payoutIndicatorText}>{dayPayouts.length}</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
-
-        {monthPayouts.length > 0 && (
-          <View style={styles.monthPayoutsList}>
-            <Text style={styles.monthPayoutsTitle}>
-              Payouts this month ({monthPayouts.length})
-            </Text>
-            {monthPayouts.map((payout, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[commonStyles.card, styles.payoutCard]}
-                onPress={() => handlePayoutPress(payout)}
-              >
-                <View style={styles.payoutHeader}>
-                  <View style={styles.payoutInfo}>
-                    <Text style={commonStyles.text}>{payout.roundName}</Text>
-                    <Text style={commonStyles.textSecondary}>
-                      {formatDate(payout.payoutDate)}
-                    </Text>
-                  </View>
-                  <View style={styles.payoutBadge}>
-                    <Text style={styles.payoutBadgeText}>
-                      {payout.userRole === 'organizer' ? 'Organizer' : 'Member'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={commonStyles.textSecondary}>
-                  Recipient: {payout.recipientName}
-                </Text>
-                <Text style={[commonStyles.text, styles.payoutAmount]}>
-                  {payout.currency} {payout.amount}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    );
   };
 
   const renderListView = () => {
@@ -365,53 +166,6 @@ export default function CalendarScreen() {
       <Stack.Screen options={{ title: 'Calendar', headerShown: true }} />
       <SafeAreaView style={commonStyles.wrapper} edges={['bottom']}>
         <View style={styles.controls}>
-          <View style={styles.viewToggle}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                viewMode === 'list' && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleViewModeChange('list')}
-            >
-              <IconSymbol
-                ios_icon_name="list.bullet"
-                android_material_icon_name="view-list"
-                size={20}
-                color={viewMode === 'list' ? '#FFFFFF' : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.toggleButtonText,
-                  viewMode === 'list' && styles.toggleButtonTextActive,
-                ]}
-              >
-                List
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                viewMode === 'calendar' && styles.toggleButtonActive,
-              ]}
-              onPress={() => handleViewModeChange('calendar')}
-            >
-              <IconSymbol
-                ios_icon_name="calendar"
-                android_material_icon_name="calendar-today"
-                size={20}
-                color={viewMode === 'calendar' ? '#FFFFFF' : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.toggleButtonText,
-                  viewMode === 'calendar' && styles.toggleButtonTextActive,
-                ]}
-              >
-                Calendar
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.filterToggle}>
             <TouchableOpacity
               style={[
@@ -487,10 +241,7 @@ export default function CalendarScreen() {
               </Text>
             </View>
           ) : (
-            <>
-              {viewMode === 'calendar' && renderCalendarView()}
-              {viewMode === 'list' && renderListView()}
-            </>
+            renderListView()
           )}
         </ScrollView>
       </SafeAreaView>
@@ -502,33 +253,6 @@ const styles = StyleSheet.create({
   controls: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    gap: 12,
-  },
-  viewToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12,
-    padding: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  toggleButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  toggleButtonTextActive: {
-    color: '#FFFFFF',
   },
   filterToggle: {
     flexDirection: 'row',
@@ -575,93 +299,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
-  },
-  calendarContainer: {
-    marginTop: 8,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  monthNavButton: {
-    padding: 8,
-  },
-  monthTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  weekdayHeader: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  weekdayCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  weekdayText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  dayCell: {
-    flex: 1,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: colors.backgroundAlt,
-    marginHorizontal: 2,
-    position: 'relative',
-  },
-  dayCellEmpty: {
-    backgroundColor: 'transparent',
-  },
-  dayCellToday: {
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  dayTextToday: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  payoutIndicator: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  payoutIndicatorText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  monthPayoutsList: {
-    marginTop: 24,
-  },
-  monthPayoutsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 12,
   },
   listContainer: {
     marginTop: 8,
